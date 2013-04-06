@@ -73,32 +73,32 @@ string makeVisibleChar(char x){
   }
 }
 void debugDumpAsHtml(TextInfo a){
-  cout << "<style>i{background:yellow;}b{background:black;color:white}</style>";
-  cout << "<h1>original text:</h1>";
-  cout << "<pre>" << a.original_text << "</pre>";
-  cout << "<h1>important text:</h1>";
-  cout << "<pre>" << a.important_text<< "</pre>";
-  cout << "<h1>visualized classes:</h1>";
-  cout << "<pre>";
+  cerr << "<style>i{background:yellow;}b{background:black;color:white}</style>";
+  cerr << "<h1>original text:</h1>";
+  cerr << "<pre>" << a.original_text << "</pre>";
+  cerr << "<h1>important text:</h1>";
+  cerr << "<pre>" << a.important_text<< "</pre>";
+  cerr << "<h1>visualized classes:</h1>";
+  cerr << "<pre>";
   for(unsigned int i=0;i<a.original_text.length();++i){
     switch (a.states[i]) {
     case DFA::IGNORABLE:
-      cout << "<i title=" << (int)a.original_text[i] << ">" << makeVisibleChar(a.original_text[i])<< "</i>";
+      cerr << "<i title=" << (int)a.original_text[i] << ">" << makeVisibleChar(a.original_text[i])<< "</i>";
       break;
    case DFA::OPEN_BRACKET:
-      cout << "<b class=open_bracket title=open>" << makeVisibleChar(a.original_text[i])<< "</b>";
+      cerr << "<b class=open_bracket title=open>" << makeVisibleChar(a.original_text[i])<< "</b>";
       break;
    case DFA::END_BRACKET:
-      cout << "<b class=end_bracket title=close>" << makeVisibleChar(a.original_text[i]) << "</b>";
+      cerr << "<b class=end_bracket title=close>" << makeVisibleChar(a.original_text[i]) << "</b>";
       break;
    case DFA::IMPORTANT:
-     cout << makeVisibleChar(a.original_text[i]);
+     cerr << makeVisibleChar(a.original_text[i]);
      break;
     }
   }
-  cout << "</pre>";
-  cout << "<h1>visualized fragments:</h1>";
-  cout << "<pre>";
+  cerr << "</pre>";
+  cerr << "<h1>visualized fragments:</h1>";
+  cerr << "<pre>";
 
   unsigned int waiting = 0;
   set<unsigned int> opened;
@@ -107,23 +107,23 @@ void debugDumpAsHtml(TextInfo a){
     while(waiting< a.points.size() && a.points[waiting].first == i){
       if(!a.points[waiting].second.first){
         opened.erase(a.points[waiting].second.second);
-        cout << "<b>}" << a.points[waiting].second.second << "</b>";
+        cerr << "<b>}" << a.points[waiting].second.second << "</b>";
       }else{
         opened.insert(a.points[waiting].second.second);
-        cout << "<b>" << a.points[waiting].second.second << "{</b>";
+        cerr << "<b>" << a.points[waiting].second.second << "{</b>";
       }
       waiting++;
     }
-    cout << makeVisibleChar(a.important_text[i]);
+    cerr << makeVisibleChar(a.important_text[i]);
   }
   while(waiting< a.points.size() && a.points[waiting].first == a.important_text.length()){
     assert(!a.points[waiting].second.first);
     opened.erase(a.points[waiting].second.second);
-    cout << "<b>}" << a.points[waiting].second.second << "</b>";
+    cerr << "<b>}" << a.points[waiting].second.second << "</b>";
     waiting++;
   }
   assert(opened.empty());
-  cout << "</pre>";
+  cerr << "</pre>";
   
 }
 vector<pair<unsigned int,pair<bool,unsigned int> > > computeSplitPoints(vector<Match> &matches){
@@ -155,39 +155,39 @@ Graph createGraph(TextInfo a,TextInfo b){
   
 }
 void debugDumpAsHtml(Graph g,string name){
-  cout << "<h1>Graph "<<name << "</h1>";
-  cout << "<table><tr><td><pre>";
+  cerr << "<h1>Graph "<<name << "</h1>";
+  cerr << "<table><tr><td><pre>";
   int lastId = -1;
   for(unsigned int i=0;i<g.getLeftSize();++i){
     int id=g.left(i);
-    cout << id << ": ";
+    cerr << id << ": ";
     for(unsigned int j=0;j<g.getOutDegree(id);++j){
       int endId = g.getOutEdgeEnd(id,j);
       if(endId!=lastId+1){
-        cout << "<b>" << endId << "</b>,";
+        cerr << "<b>" << endId << "</b>,";
       }else{
-        cout << endId<< ",";
+        cerr << endId<< ",";
       }
       lastId = endId;      
     }
-    cout << endl;
+    cerr << endl;
   }
-  cout << "</pre></td><td><pre>";
+  cerr << "</pre></td><td><pre>";
   for(unsigned int i=0;i<g.getRightSize();++i){
     int id=g.right(i);
-    cout << id << ": ";
+    cerr << id << ": ";
     for(unsigned int j=0;j<g.getOutDegree(id);++j){
       int endId = g.getOutEdgeEnd(id,j);
       if(endId!=lastId+1){
-        cout << "<b>" << endId << "</b>,";
+        cerr << "<b>" << endId << "</b>,";
       }else{
-        cout << endId<< ",";
+        cerr << endId<< ",";
       }
       lastId = endId;      
     }
-    cout << endl;
+    cerr << endl;
   }  
-  cout << "</pre></td></tr></table>";
+  cerr << "</pre></td></tr></table>";
   
 }
 pair<Graph,Graph> getWeakAndStrong(Graph g){
@@ -281,12 +281,12 @@ Graph merge(Graph a,Graph b){
 }
 #include "Block.h"
 void debugDumpAsHtml(vector<Block> blocks){
-  cout << "<h1>code blocks</h1>";
-  cout << "<pre>";
+  cerr << "<h1>code blocks</h1>";
+  cerr << "<pre>";
   FOREACH(block,blocks){
-    cout << block->startSrc << " -> " << block->startDest << " (len: " << block->length << ")<br>";
+    cerr << block->startSrc << " -> " << block->startDest << " (len: " << block->length << ")<br>";
   }
-  cout << "</pre>";
+  cerr << "</pre>";
 }
 bool areAligned(Block a,Block b){
   return a.startSrc < b.startSrc && a.startDest < b.startDest;
@@ -464,11 +464,11 @@ void storeMatch(int from,int len,int continuationOf,int matchId,vector<pair<int,
   }
 }
 void debugDumpAsHtml(vector<pair<int,int> > matchInfo){
-  cout << "<pre>";
+  cerr << "<pre>";
   for(unsigned int i=0;i<matchInfo.size();++i){
-    cout << i << ": " << matchInfo[i].first << ',' << matchInfo[i].second << endl;
+    cerr << i << ": " << matchInfo[i].first << ',' << matchInfo[i].second << endl;
   }
-  cout << "</pre>";
+  cerr << "</pre>";
 }
 void naiveInflate(TextInfo &info){
   info.fullMatchInfo = vector<pair<int,int> >(info.original_text.length(),make_pair(-1,-1));
@@ -501,9 +501,9 @@ void inflateWhitespaces(TextInfo &a,TextInfo &b,Graph matching){
         }
         string leftString = a.original_text.substr(start,end-start);
         string rightString = b.original_text.substr(rightStart,rightEnd-rightStart);
-        cout << "Matching " << start << "-:-" << end << " vs. " << rightStart << "-:-" << rightEnd << endl;
+        cerr << "Matching " << start << "-:-" << end << " vs. " << rightStart << "-:-" << rightEnd << endl;
         vector<pair<int,int> > path = getAnyLCS(lcs(leftString,rightString));
-        cout << "Found " << path.size() << " path" << endl;
+        cerr << "Found " << path.size() << " path" << endl;
         int lastLeft = a.fullMatchInfo[end].second;
         int lastRight = b.fullMatchInfo[rightEnd].second;
         int freeMatchId = a.fullMatchInfo[end].first;
@@ -555,11 +555,11 @@ void getCheapest(string aText,string bText,DFA &dfa){
   b.matches=indexLongestFragments(b.important_text,a.important_text);
   a.points = computeSplitPoints(a.matches);
   b.points = computeSplitPoints(b.matches);
-  cout << "<table><tr><td>";
+  cerr << "<table><tr><td>";
   debugDumpAsHtml(a);
-  cout << "</td><td>";
+  cerr << "</td><td>";
   debugDumpAsHtml(b);
-  cout << "</td></tr></table>";
+  cerr << "</td></tr></table>";
   Graph g = createGraph(a,b);
   debugDumpAsHtml(g,"g");
   auto weakAndStrong = getWeakAndStrong(g);
@@ -592,23 +592,23 @@ void getCheapest(string aText,string bText,DFA &dfa){
     storeMatch(matching.whichLeft(block.startSrc),block.length,continuationOfLeft,matchId,a.matchInfo);
     storeMatch(matching.whichRight(block.startDest),block.length,continuationOfRight,matchId,b.matchInfo);
   }
-  cout << "<table><tr><td>";
+  cerr << "<table><tr><td>";
   debugDumpAsHtml(a.matchInfo);
-  cout << "</td><td>";
+  cerr << "</td><td>";
   debugDumpAsHtml(b.matchInfo);
-  cout << "</td></tr></table>";
+  cerr << "</td></tr></table>";
 
   inflateWhitespaces(a,b,matching);
   
 
 
-  cout << "<h1>Official</h1>";
-  cout << "<pre>";
+  cerr << "<h1>Official</h1>";
+  cerr << "<pre>";
   cout << "A:" << endl;
   officialOutput(a.fullMatchInfo);
   cout << "B:" << endl;
   officialOutput(b.fullMatchInfo);
-  cout << "</pre>";
+  cerr << "</pre>";
   
   
   /*
