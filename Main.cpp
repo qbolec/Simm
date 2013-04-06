@@ -1,5 +1,4 @@
 #include "Utilities.h"
-//#include "Old.h"
 #include "DFA.h"
 #include "CLikeDFA.h"
 #include "Graph.h"
