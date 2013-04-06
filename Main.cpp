@@ -4,6 +4,7 @@
 //#include "Old.h"
 #include "DFA.h"
 #include "CLikeDFA.h"
+#include "Graph.h"
 #include "Logic.h"
 
 

@@ -146,6 +146,57 @@ vector<pair<unsigned int,pair<bool,unsigned int> > > computeSplitPoints(vector<M
   sort(points.begin(),points.end());
   return points;
 }
+Graph createGraph(TextInfo a,TextInfo b){
+  Graph g(a.important_text.length(),b.important_text.length());
+  for(unsigned int i=0;i<a.matches.size();++i){
+    for(unsigned int p=0;p<a.matches[i].length;++p){
+      g.addEdge(g.left(a.matches[i].startSrc+p),g.right(a.matches[i].startDest+p));
+    }
+  }
+  for(unsigned int i=0;i<b.matches.size();++i){
+    for(unsigned int p=0;p<b.matches[i].length;++p){
+      g.addEdge(g.right(b.matches[i].startSrc+p),g.left(b.matches[i].startDest+p));
+    }
+  }
+  return g;
+  
+}
+void debugDumpAsHtml(Graph g){
+  cout << "<h1>Graph</h1>";
+  cout << "<table><tr><td><pre>";
+  int lastId = -1;
+  for(unsigned int i=0;i<g.getLeftSize();++i){
+    int id=g.left(i);
+    cout << i << ": ";
+    for(unsigned int j=0;j<g.getOutDegree(id);++j){
+      int endId = g.getOutEdgeEnd(id,j);
+      if(endId!=lastId+1){
+        cout << "<b>" << endId << "</b>,";
+      }else{
+        cout << endId<< ",";
+      }
+      lastId = endId;      
+    }
+    cout << endl;
+  }
+  cout << "</pre></td><td><pre>";
+  for(unsigned int i=0;i<g.getRightSize();++i){
+    int id=g.right(i);
+    cout << id << ": ";
+    for(unsigned int j=0;j<g.getOutDegree(id);++j){
+      int endId = g.getOutEdgeEnd(id,j);
+      if(endId!=lastId+1){
+        cout << "<b>" << endId << "</b>,";
+      }else{
+        cout << endId<< ",";
+      }
+      lastId = endId;      
+    }
+    cout << endl;
+  }  
+  cout << "</pre></td></tr></table>";
+  
+}
 State getCheapest(State s,DFA &dfa){
   TextInfo a = analyzeText(s.a->innerText,dfa);
   TextInfo b = analyzeText(s.b->innerText,dfa);
@@ -158,9 +209,9 @@ State getCheapest(State s,DFA &dfa){
   cout << "</td><td>";
   debugDumpAsHtml(b);
   cout << "</td></tr></table>";
+  Graph g = createGraph(a,b);
+  debugDumpAsHtml(g);
   /*
-  . index text (what for?)
-  . find longest fragments
   . add edges between letters
   . mark strong edges
   . match braces
