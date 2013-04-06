@@ -32,21 +32,21 @@ public:
     AFTER_WHITESPACE_AFTER_ALPHANUM,
   };
 private:
-  void handle(STATE from,string what,STATE to,vector<CHARACTER_CLASS> &how){
+  void handle(STATE from,string what,STATE to,vector<CHARACTER_CLASS> how){
     for(unsigned int i=0;i<what.length();++i){
       addEdge(from,what[i],to,how);
     }    
   }
-  void handleAlphaNum(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+  void handleAlphaNum(STATE from,STATE to,vector<CHARACTER_CLASS> how){
     handle(from,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789",to,how);
   }
-  void handleWhitespace(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+  void handleWhitespace(STATE from,STATE to,vector<CHARACTER_CLASS> how){
     handle(from," \t\n\r",to,how);
   }
-  void handleOpenBracket(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+  void handleOpenBracket(STATE from,STATE to,vector<CHARACTER_CLASS> how){
     handle(from,"{([",to,how);    
   }
-  void handleEndBracket(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+  void handleEndBracket(STATE from,STATE to,vector<CHARACTER_CLASS> how){
     handle(from,"})]",to,how);    
   }
 public:

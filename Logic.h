@@ -2,11 +2,11 @@ vector<DFA::CHARACTER_CLASS> tagLetters(string text,DFA &dfa){
   vector<DFA::CHARACTER_CLASS> tags;
   dfa.reset();
   for(unsigned int i=0;i<text.length();++i){
-    auto emitted = dfa.react(text[i]);
+    vector<DFA::CHARACTER_CLASS> emitted = dfa.react(text[i]);
     tags.insert(tags.end(),emitted.begin(),emitted.end());
   }
   {
-    auto emitted = dfa.react(0);
+    vector<DFA::CHARACTER_CLASS> emitted = dfa.react(0);
     tags.insert(tags.end(),emitted.begin(),emitted.end());
   }
   //TODO : if there is / at the end of file, the length of tags will not match text
@@ -347,7 +347,6 @@ struct JudgeSticking{
   JudgeSticking(vector<Block> blocks):blocks(blocks),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0){
   }
   void operator()(Graph sticks){
-    debugDumpAsHtml(sticks,"sticks");
     unsigned int edgesCount = sticks.getEdgesCount();
     assert(edgesCount%2==0);
     if(bestSticksCount < edgesCount){
@@ -379,7 +378,6 @@ vector<Block> getBlocks(Graph matching){
   return blocks;
 }
 Graph getBestSticksForBlocks(vector<Block> blocks ){
-  debugDumpAsHtml(blocks);
   JudgeSticking judge(blocks);
   foreachBlocksSticking(blocks,judge);
   return judge.getBestSticks();
@@ -415,7 +413,6 @@ struct ProcessMatching{
     Graph merged = merge(strongMatching,matching);
     //debugDumpAsHtml(strongMatching,"strong matching");
     //debugDumpAsHtml(matching,"matching");
-    debugDumpAsHtml(merged,"merged");
     const unsigned int c = cost(merged);
     if(c < bestCost){
       bestCost = c;
@@ -556,25 +553,17 @@ void getCheapest(string aText,string bText,DFA &dfa){
   a.points = computeSplitPoints(a.matches);
   b.points = computeSplitPoints(b.matches);
   cerr << "<table><tr><td>";
-  debugDumpAsHtml(a);
   cerr << "</td><td>";
-  debugDumpAsHtml(b);
   cerr << "</td></tr></table>";
   Graph g = createGraph(a,b);
-  debugDumpAsHtml(g,"g");
-  auto weakAndStrong = getWeakAndStrong(g);
+  pair<Graph,Graph> weakAndStrong = getWeakAndStrong(g);
   Graph weak = weakAndStrong.first;
-  debugDumpAsHtml(weak,"weak");
   Graph strong = weakAndStrong.second;
-  debugDumpAsHtml(strong,"strong");
   ForEachWeak judge(weak);
   foreachMatching(strong, judge );
   Graph matching = judge.getBestMatching();
   vector<Block> blocks = getBlocks(matching);
   Graph sticks = getBestSticksForBlocks(blocks);
-  debugDumpAsHtml(matching,"best matching!");
-  debugDumpAsHtml(blocks);
-  debugDumpAsHtml(sticks,"winer sticks");
   a.matchInfo.resize(a.important_text.length(),make_pair(-1,-1));
   b.matchInfo.resize(b.important_text.length(),make_pair(-1,-1));
 
@@ -593,9 +582,7 @@ void getCheapest(string aText,string bText,DFA &dfa){
     storeMatch(matching.whichRight(block.startDest),block.length,continuationOfRight,matchId,b.matchInfo);
   }
   cerr << "<table><tr><td>";
-  debugDumpAsHtml(a.matchInfo);
   cerr << "</td><td>";
-  debugDumpAsHtml(b.matchInfo);
   cerr << "</td></tr></table>";
 
   inflateWhitespaces(a,b,matching);

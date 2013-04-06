@@ -8,10 +8,10 @@
 #include<utility>
 #include<vector>
 #include<algorithm>
-#include<unordered_map>
+#include<map>
 using namespace std;
-#define FOREACH(it,con) for(auto it=con.begin();it!=con.end();++it)
-//#define FOREACH(it,con) for(__typeof(con.begin()) it=con.begin();it!=con.end();++it)
+//#define FOREACH(it,con) for(auto it=con.begin();it!=con.end();++it)
+#define FOREACH(it,con) for(__typeof(con.begin()) it=con.begin();it!=con.end();++it)
 string readfile(char * name){
   ifstream a(name);
   stringstream buffer;
@@ -73,7 +73,7 @@ vector<pair<int,int> > getAnyLCS(LCSDescription lcs){
 
 template<typename T,typename I>
 bool contains(I begin,I end,T x){
-  for(auto i=begin;i!=end;++i){
+  for(I i=begin;i!=end;++i){
     if(*i == x){
       return true;
     }

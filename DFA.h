@@ -11,7 +11,9 @@ public:
     ANY_OTHER_CHARACTER = -1,
   };  
 private:
-  vector<unordered_map<char,pair<vector<CHARACTER_CLASS>,int> > > stepFunction;
+
+  typedef map<char,pair<vector<CHARACTER_CLASS>,int> > MapType;
+  vector<MapType> stepFunction;
   unsigned int state;
 public:
   void addDefault(int from,int to,vector<CHARACTER_CLASS> emit){
@@ -28,12 +30,12 @@ public:
   }
   vector<CHARACTER_CLASS> react(char input){
     assert(state < stepFunction.size());
-    auto ptr = stepFunction[state].find(input);
+    MapType::iterator ptr = stepFunction[state].find(input);
     if(ptr != stepFunction[state].end()){
       state = ptr->second.second;
       return ptr->second.first;
     }else if(input!=END_OF_FILE){
-      auto ptr = stepFunction[state].find(ANY_OTHER_CHARACTER);
+      ptr = stepFunction[state].find(ANY_OTHER_CHARACTER);
       assert(ptr!=stepFunction[state].end());
       state = ptr->second.second;
       return ptr->second.first;      
