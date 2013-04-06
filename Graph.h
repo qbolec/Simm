@@ -1,7 +1,7 @@
 class Graph{
   unsigned int leftSize;
   unsigned int rightSize;
-  vector<vector<int> > edges;
+  vector<vector<unsigned int> > edges;
 public:
   Graph(unsigned int leftSize,unsigned int rightSize):
     leftSize(leftSize),rightSize(rightSize){
@@ -17,7 +17,9 @@ public:
   unsigned int getRightSize(){
     return rightSize;
   }
-
+  unsigned int getNodesCount(){
+    return 1+leftSize+rightSize+1;
+  }
   unsigned int source(){
     return 0;
   }
@@ -35,6 +37,13 @@ public:
   }
   unsigned int getOutEdgeEnd(unsigned int id,unsigned int i){
     return edges[id][i];
+  }
+  void isolate(unsigned int id){
+    FOREACH(e,edges[id]){
+      assert(edgeExists(*e,id));
+      edges[*e]=erase(edges[*e],id);
+    }
+    edges[id].clear();
   }
   void addEdge(unsigned int from,unsigned int to){
     assert(!edgeExists(from,to));

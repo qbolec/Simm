@@ -23,6 +23,17 @@ string erase(string a,int start,int len){
   return a.substr(0,start) + a.substr(start+len);
 }
 
+template<typename T,typename A>
+vector<T,A> erase(const vector<T,A> &v,T x){
+  vector<T,A> newV;
+  unsigned int j=0;
+  for(unsigned int i=0;i<v.size();++i){
+    if(v[i]!=x){
+      newV.push_back(v[i]);
+    }
+  }
+  return newV;
+}
 
 typedef vector<vector<int> > LCSDescription;
 LCSDescription lcs(string a,string b){
@@ -45,5 +56,6 @@ bool contains(I begin,I end,T x){
       return true;
     }
   }
+  return false;
 }
   

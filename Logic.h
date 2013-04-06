@@ -168,13 +168,13 @@ Graph createGraph(TextInfo a,TextInfo b){
   return g;
   
 }
-void debugDumpAsHtml(Graph g){
-  cout << "<h1>Graph</h1>";
+void debugDumpAsHtml(Graph g,string name){
+  cout << "<h1>Graph "<<name << "</h1>";
   cout << "<table><tr><td><pre>";
   int lastId = -1;
   for(unsigned int i=0;i<g.getLeftSize();++i){
     int id=g.left(i);
-    cout << i << ": ";
+    cout << id << ": ";
     for(unsigned int j=0;j<g.getOutDegree(id);++j){
       int endId = g.getOutEdgeEnd(id,j);
       if(endId!=lastId+1){
@@ -215,6 +215,7 @@ pair<Graph,Graph> getWeakAndStrong(Graph g){
         strong.addEdge(id,endId);        
       }else{
         weak.addEdge(id,endId);
+        weak.addEdge(endId,id);
       }
     }
   }
@@ -226,11 +227,100 @@ pair<Graph,Graph> getWeakAndStrong(Graph g){
         strong.addEdge(id,endId);        
       }else{
         weak.addEdge(id,endId);
+        weak.addEdge(endId,id);
       }
     }
   }
   return make_pair(weak,strong);
 }
+template<typename Callback>
+void foreachMatching(Graph &g,Callback &foo,unsigned int leftPos,Graph matching){
+  if(leftPos == g.getLeftSize()){
+    foo(matching);
+  }else{
+    unsigned int id=g.left(leftPos);
+    bool canSkip = true;
+    for(unsigned int i=0;i<g.getOutDegree(id);++i){
+      unsigned int endId = g.getOutEdgeEnd(id,i);
+      if(0<matching.getOutDegree(endId)){
+        unsigned int saveFromId = matching.getOutEdgeEnd(endId,0);
+        matching.isolate(endId);
+          
+        matching.addEdge(id,endId);
+        matching.addEdge(endId,id);
+        foreachMatching(g,foo,leftPos+1,matching);
+
+        matching.isolate(endId);
+        matching.addEdge(saveFromId,endId);
+        matching.addEdge(endId,saveFromId);
+          
+      }else{
+        canSkip = false;
+          
+        matching.addEdge(id,endId);
+        matching.addEdge(endId,id);
+        foreachMatching(g,foo,leftPos+1,matching);
+
+        matching.isolate(endId);
+          
+      }
+    }
+    if(canSkip){
+      foreachMatching(g,foo,leftPos+1,matching);
+    }
+    
+  }
+}
+template<typename Callback>
+void foreachMatching(Graph g,Callback &foo){
+  Graph matching(g.getLeftSize(),g.getRightSize());
+  foreachMatching(g,foo,0,matching);
+}
+void copyEdges(Graph a,Graph &b){
+  for(unsigned int id=0;id<a.getNodesCount();++id){
+    for(unsigned int j=0;j<a.getOutDegree(id);++j){
+      unsigned int endId = a.getOutEdgeEnd(id,j);
+      b.addEdge(id,endId);
+    }
+  }  
+}
+Graph merge(Graph a,Graph b){
+  assert(a.getLeftSize()==b.getLeftSize());
+  assert(a.getRightSize()==b.getRightSize());
+  Graph merged(a.getLeftSize(),a.getRightSize());
+  copyEdges(a,merged);
+  copyEdges(b,merged);
+  return merged;
+
+}
+struct ProcessMatching{
+  Graph strongMatching;
+  ProcessMatching(Graph strongMatching):strongMatching(strongMatching){}
+  void operator()(Graph matching){
+    Graph merged = merge(strongMatching,matching);
+    //debugDumpAsHtml(strongMatching,"strong matching");
+    //debugDumpAsHtml(matching,"matching");
+    debugDumpAsHtml(merged,"merged");
+  }
+};
+struct ForEachWeak{
+  Graph weak;
+  ForEachWeak(Graph weak):weak(weak){}
+  void operator()(Graph matching){
+    Graph leftOvers=weak;
+    for(unsigned int i=0;i<matching.getLeftSize();++i){
+      unsigned int id = matching.left(i);
+      for(unsigned int j=0;j<matching.getOutDegree(id);++j){
+        unsigned int endId = matching.getOutEdgeEnd(id,j);
+        leftOvers.isolate(endId);        
+        leftOvers.isolate(id);      
+      }
+    }
+    //debugDumpAsHtml(leftOvers,"left overs");
+
+    foreachMatching(leftOvers,ProcessMatching(matching));
+  }
+};
 State getCheapest(State s,DFA &dfa){
   TextInfo a = analyzeText(s.a->innerText,dfa);
   TextInfo b = analyzeText(s.b->innerText,dfa);
@@ -244,12 +334,14 @@ State getCheapest(State s,DFA &dfa){
   debugDumpAsHtml(b);
   cout << "</td></tr></table>";
   Graph g = createGraph(a,b);
-  debugDumpAsHtml(g);
+  debugDumpAsHtml(g,"g");
   auto weakAndStrong = getWeakAndStrong(g);
   Graph weak = weakAndStrong.first;
-  debugDumpAsHtml(weak);
+  debugDumpAsHtml(weak,"weak");
   Graph strong = weakAndStrong.second;
-  debugDumpAsHtml(strong);  
+  debugDumpAsHtml(strong,"strong");
+
+  foreachMatching(strong, ForEachWeak(weak));
   
   /*
   . add edges between letters
