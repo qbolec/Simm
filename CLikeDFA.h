@@ -1,0 +1,105 @@
+class CLikeDFA : public DFA{
+  vector<CHARACTER_CLASS> v(){
+    vector<CHARACTER_CLASS> v;
+    return v;
+  }  
+  vector<CHARACTER_CLASS> v(CHARACTER_CLASS a){
+    vector<CHARACTER_CLASS> v;
+    v.push_back(a);
+    return v;
+  }
+  vector<CHARACTER_CLASS> v(CHARACTER_CLASS a,CHARACTER_CLASS b){
+    vector<CHARACTER_CLASS> v;
+    v.push_back(a);
+    v.push_back(b);
+    return v;
+  }
+public:
+  enum STATE{
+    CODE = 0,
+    CODE_AFTER_BRACKET,
+    QUOTED_STRING,
+    QUOTED_ESCAPED,
+    APOSTROPHED_STRING,
+    APOSTROPHED_ESCAPED,
+    SLASHED,
+    SINGLE_LINE_COMMENT,
+    MULTILINE_COMMENT,
+    STARRED,
+    AFTER_WHITESPACE
+  };
+private:
+  void handle(STATE from,string what,STATE to,vector<CHARACTER_CLASS> &how){
+    for(unsigned int i=0;i<what.length();++i){
+      addEdge(from,what[i],to,how);
+    }    
+  }
+  void handleWhitespace(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+    handle(from," \t\n\r",to,how);
+  }
+  void handleOpenBracket(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+    handle(from,"{([",to,how);    
+  }
+  void handleEndBracket(STATE from,STATE to,vector<CHARACTER_CLASS> &how){
+    handle(from,"})]",to,how);    
+  }
+public:
+  CLikeDFA():DFA(){
+    addEdge(CODE,'"',QUOTED_STRING,v(OPEN_BRACKET));
+    addEdge(CODE,'\'',APOSTROPHED_STRING,v(OPEN_BRACKET));
+    addEdge(CODE,'/',SLASHED,v());
+    handleOpenBracket(CODE,CODE_AFTER_BRACKET,v(OPEN_BRACKET));
+    handleEndBracket(CODE,CODE_AFTER_BRACKET,v(END_BRACKET));
+    handleWhitespace(CODE,AFTER_WHITESPACE,v());
+    addDefault(CODE,CODE,v(IMPORTANT));
+
+    addEdge(CODE_AFTER_BRACKET,'"',QUOTED_STRING,v(OPEN_BRACKET));
+    addEdge(CODE_AFTER_BRACKET,'\'',APOSTROPHED_STRING,v(OPEN_BRACKET));
+    addEdge(CODE_AFTER_BRACKET,'/',SLASHED,v());
+    handleOpenBracket(CODE_AFTER_BRACKET,CODE_AFTER_BRACKET,v(OPEN_BRACKET));
+    handleEndBracket(CODE_AFTER_BRACKET,CODE_AFTER_BRACKET,v(END_BRACKET));
+    handleWhitespace(CODE_AFTER_BRACKET,CODE_AFTER_BRACKET,v(IGNORABLE));
+    addDefault(CODE_AFTER_BRACKET,CODE,v(IMPORTANT));
+
+
+
+    handleWhitespace(AFTER_WHITESPACE,AFTER_WHITESPACE,v(IGNORABLE));
+    addEdge(AFTER_WHITESPACE,'"',QUOTED_STRING,v(IGNORABLE,OPEN_BRACKET));
+    addEdge(AFTER_WHITESPACE,'\'',APOSTROPHED_STRING,v(IGNORABLE,OPEN_BRACKET));
+    addEdge(AFTER_WHITESPACE,'/',SLASHED,v(IGNORABLE));
+    handleOpenBracket(AFTER_WHITESPACE,CODE_AFTER_BRACKET,v(IGNORABLE,OPEN_BRACKET));
+    handleEndBracket(AFTER_WHITESPACE,CODE_AFTER_BRACKET,v(IGNORABLE,END_BRACKET));
+    addDefault(AFTER_WHITESPACE,CODE,v(IMPORTANT,IMPORTANT));
+    addEdge(AFTER_WHITESPACE,END_OF_FILE,CODE,v(IGNORABLE));
+
+    addEdge(SLASHED,'/',SINGLE_LINE_COMMENT,v(OPEN_BRACKET,IMPORTANT));
+    addEdge(SLASHED,'*',MULTILINE_COMMENT,v(OPEN_BRACKET,IMPORTANT));
+    addEdge(SLASHED,'"',QUOTED_STRING,v(IMPORTANT,OPEN_BRACKET));
+    addEdge(SLASHED,'\'',APOSTROPHED_STRING,v(IMPORTANT,OPEN_BRACKET));
+    handleWhitespace(SLASHED,AFTER_WHITESPACE,v(IMPORTANT));
+    handleOpenBracket(SLASHED,CODE_AFTER_BRACKET,v(IMPORTANT,OPEN_BRACKET));
+    handleEndBracket(SLASHED,CODE_AFTER_BRACKET,v(IMPORTANT,END_BRACKET));    
+    addDefault(SLASHED,CODE,v(IMPORTANT,IMPORTANT));
+    addEdge(SLASHED,END_OF_FILE,CODE,v(IMPORTANT));
+
+    addEdge(SINGLE_LINE_COMMENT,'\n',CODE,v(END_BRACKET));
+    addDefault(SINGLE_LINE_COMMENT,SINGLE_LINE_COMMENT,v(IMPORTANT));
+    
+    addEdge(MULTILINE_COMMENT,'*',STARRED,v(IMPORTANT));
+    addDefault(MULTILINE_COMMENT,MULTILINE_COMMENT,v(IMPORTANT));    
+    
+    addEdge(STARRED,'/',CODE,v(END_BRACKET));
+    addDefault(STARRED,MULTILINE_COMMENT,v(IMPORTANT));
+
+    addEdge(QUOTED_STRING,'"',CODE,v(END_BRACKET));
+    addEdge(QUOTED_STRING,'\\',QUOTED_ESCAPED,v(IMPORTANT));
+    addDefault(QUOTED_ESCAPED,QUOTED_STRING,v(IMPORTANT));
+    addDefault(QUOTED_STRING,QUOTED_STRING,v(IMPORTANT));
+        
+    addEdge(APOSTROPHED_STRING,'"',CODE,v(END_BRACKET));
+    addEdge(APOSTROPHED_STRING,'\\',APOSTROPHED_ESCAPED,v(IMPORTANT));
+    addDefault(APOSTROPHED_ESCAPED,APOSTROPHED_STRING,v(IMPORTANT));
+    addDefault(APOSTROPHED_STRING,APOSTROPHED_STRING,v(IMPORTANT));
+    
+  }
+};
