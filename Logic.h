@@ -20,22 +20,8 @@ vector<int> range(int from,int to){
   }
   return x;
 }
-struct Match{
-  unsigned int startSrc;
-  vector<unsigned int> startDest;
-  unsigned int length;
-  Match(unsigned int startSrc,vector<unsigned int> startDest,unsigned int length):
-    startSrc(startSrc),startDest(startDest),length(length){
-  };
-};
-struct TextInfo{
-  string important_text;
-  string original_text;
-  vector<unsigned int> positions;
-  vector<DFA::CHARACTER_CLASS> states;
-  vector<Match> matches;
-  vector<pair<unsigned int,pair<bool,unsigned int> > >  points;
-};
+#include "Match.h"
+#include "TextInfo.h"
 TextInfo analyzeText(string text,DFA &dfa){
   TextInfo a;
   a.original_text = text;
@@ -293,37 +279,278 @@ Graph merge(Graph a,Graph b){
   return merged;
 
 }
+#include "Block.h"
+void debugDumpAsHtml(vector<Block> blocks){
+  cout << "<h1>code blocks</h1>";
+  cout << "<pre>";
+  FOREACH(block,blocks){
+    cout << block->startSrc << " -> " << block->startDest << " (len: " << block->length << ")<br>";
+  }
+  cout << "</pre>";
+}
+bool areAligned(Block a,Block b){
+  return a.startSrc < b.startSrc && a.startDest < b.startDest;
+}
+bool conflict(unsigned int aLo,unsigned int aHi,unsigned int bLo,unsigned int bHi){
+  assert(aHi<aLo);
+  assert(bHi<bLo);
+  return aHi < bHi && bHi < aLo &&  aLo < bLo ||
+    bHi < aHi && aHi < bLo && bLo < aLo;
+}
+bool conflict(Block aLo,Block aHi,Block bLo,Block bHi){
+  return conflict(aLo.startSrc,aHi.startSrc,bLo.startSrc,bHi.startSrc) ||
+    conflict(aLo.startDest,aHi.startDest,bLo.startDest,bHi.startDest);
+}
+template<typename Callback>
+void foreachBlocksSticking(vector<Block> blocks,Callback &foo,unsigned int blockId,Graph sticks){
+  if(blockId == blocks.size()){
+    foo(sticks);
+  }else{
+    for(unsigned int prevBlockId=0;prevBlockId<blockId;++prevBlockId){
+      unsigned int from = sticks.left(blockId);
+            
+      if(areAligned(blocks[prevBlockId],blocks[blockId])){
+        unsigned int to =sticks.right(prevBlockId);             
+        if(!sticks.getOutDegree(to)){
+          bool stop = false;
+          for(unsigned int otherBlockId=0;otherBlockId<blockId;++otherBlockId){
+            unsigned int id=sticks.left(otherBlockId);
+            for(unsigned int j=0;j<sticks.getOutDegree(id);++j){
+              unsigned int endId = sticks.getOutEdgeEnd(id,j);
+              unsigned int otherBlockPrevId = sticks.whichRight(endId);
+              if(conflict(blocks[blockId],blocks[prevBlockId],blocks[otherBlockId],blocks[otherBlockPrevId])){
+                stop=true;
+              }
+            }
+          }
+          if(!stop){
+            sticks.addEdges(from,to);
+            foreachBlocksSticking(blocks,foo,blockId+1,sticks);
+            sticks.isolate(to);
+          }
+        }
+      }
+    }
+    foreachBlocksSticking(blocks,foo,blockId+1,sticks);
+  }
+}
+
+template<typename Callback>
+void foreachBlocksSticking(vector<Block> blocks,Callback &foo){
+  Graph sticks(blocks.size(),blocks.size());
+  foreachBlocksSticking(blocks,foo,0,sticks);
+}
+struct JudgeSticking{
+  vector<Block> blocks;
+  Graph bestSticks;
+  unsigned int bestSticksCount;
+  JudgeSticking(vector<Block> blocks):blocks(blocks),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0){
+  }
+  void operator()(Graph sticks){
+    debugDumpAsHtml(sticks,"sticks");
+    unsigned int edgesCount = sticks.getEdgesCount();
+    assert(edgesCount%2==0);
+    if(bestSticksCount < edgesCount){
+      bestSticksCount = edgesCount;
+      bestSticks = sticks;
+    }
+  }
+  Graph getBestSticks(){
+    return bestSticks;
+  }
+};
+vector<Block> getBlocks(Graph matching){
+  unsigned int lastLeft=-1;
+  unsigned int lastRight=-1;
+  vector<Block> blocks;
+  for(unsigned int i=0;i<matching.getLeftSize();++i){
+    unsigned int id=matching.left(i);
+    for(unsigned int j=0;j<matching.getOutDegree(id);++j){
+      unsigned int endId = matching.getOutEdgeEnd(id,j);
+      if(id==lastLeft+1 && endId ==lastRight+1){
+        ++blocks.back().length;
+      }else{
+        blocks.push_back(Block(id,endId,1));
+      }
+      lastLeft = id;
+      lastRight = endId;
+    }
+  }  
+  return blocks;
+}
+Graph getBestSticksForBlocks(vector<Block> blocks ){
+  debugDumpAsHtml(blocks);
+  JudgeSticking judge(blocks);
+  foreachBlocksSticking(blocks,judge);
+  return judge.getBestSticks();
+}
+Graph getBestSticksForMatching(Graph matching){
+  return getBestSticksForBlocks(getBlocks(matching));
+}
+unsigned int cost(Graph matching){
+  Graph sticks = getBestSticksForMatching(matching);
+  unsigned int numberOfLetters = matching.getLeftSize()+matching.getRightSize();
+  unsigned int matchedLetters = matching.getEdgesCount();
+  assert(matchedLetters%2 == 0);
+  assert(matchedLetters <= numberOfLetters);
+  unsigned int unmatchedLetters = numberOfLetters-matchedLetters;
+  unsigned int matches = sticks.getLeftSize();
+  assert(matches == sticks.getRightSize());
+  unsigned int sticked = sticks.getEdgesCount();
+  assert(sticked%2 == 0);
+  unsigned int sticksCount = sticked/2;
+  assert(sticksCount==0 || sticksCount< matches);
+  unsigned int cost = unmatchedLetters + matches-sticksCount;
+  return cost;
+}
+ 
 struct ProcessMatching{
   Graph strongMatching;
-  ProcessMatching(Graph strongMatching):strongMatching(strongMatching){}
+  Graph bestMatching;
+  unsigned int bestCost;
+  ProcessMatching(Graph strongMatching):strongMatching(strongMatching),bestMatching(strongMatching){
+    bestCost=cost(strongMatching);
+  }
   void operator()(Graph matching){
     Graph merged = merge(strongMatching,matching);
     //debugDumpAsHtml(strongMatching,"strong matching");
     //debugDumpAsHtml(matching,"matching");
     debugDumpAsHtml(merged,"merged");
+    const unsigned int c = cost(merged);
+    if(c < bestCost){
+      bestCost = c;
+      bestMatching = merged;
+    }    
+  }
+  Graph getBestMatching(){
+    return bestMatching;
   }
 };
 struct ForEachWeak{
   Graph weak;
-  ForEachWeak(Graph weak):weak(weak){}
-  void operator()(Graph matching){
+  Graph bestMatching;
+  unsigned int bestCost;
+  ForEachWeak(Graph weak):weak(weak),bestMatching(weak.getLeftSize(),weak.getRightSize()){
+    bestCost = cost(bestMatching);
+  }
+  void operator()(Graph strongMatching){
     Graph leftOvers=weak;
-    for(unsigned int i=0;i<matching.getLeftSize();++i){
-      unsigned int id = matching.left(i);
-      for(unsigned int j=0;j<matching.getOutDegree(id);++j){
-        unsigned int endId = matching.getOutEdgeEnd(id,j);
+    for(unsigned int i=0;i<strongMatching.getLeftSize();++i){
+      unsigned int id = strongMatching.left(i);
+      for(unsigned int j=0;j<strongMatching.getOutDegree(id);++j){
+        unsigned int endId = strongMatching.getOutEdgeEnd(id,j);
         leftOvers.isolate(endId);        
         leftOvers.isolate(id);      
       }
     }
     //debugDumpAsHtml(leftOvers,"left overs");
-
-    foreachMatching(leftOvers,ProcessMatching(matching));
+    ProcessMatching judge(strongMatching);
+    foreachMatching(leftOvers,judge);
+    Graph matching = judge.getBestMatching();
+    unsigned int c=cost(matching);
+    if(c<bestCost){
+      bestCost = c;
+      bestMatching = matching;
+    }
+  }
+  Graph getBestMatching(){
+    return bestMatching;
   }
 };
-State getCheapest(State s,DFA &dfa){
-  TextInfo a = analyzeText(s.a->innerText,dfa);
-  TextInfo b = analyzeText(s.b->innerText,dfa);
+void storeMatch(int from,int len,int continuationOf,int matchId,vector<pair<int,int> > &matchInfo){
+  for(int i=from;i<from+len;++i){
+    matchInfo[i].first = matchId;
+    matchInfo[i].second = (i==from)?continuationOf:i-1;
+  }
+}
+void debugDumpAsHtml(vector<pair<int,int> > matchInfo){
+  cout << "<pre>";
+  for(unsigned int i=0;i<matchInfo.size();++i){
+    cout << i << ": " << matchInfo[i].first << ',' << matchInfo[i].second << endl;
+  }
+  cout << "</pre>";
+}
+void naiveInflate(TextInfo &info){
+  info.fullMatchInfo = vector<pair<int,int> >(info.original_text.length(),make_pair(-1,-1));
+  for(unsigned int i=0;i<info.matchInfo.size();++i){
+    if(info.matchInfo[i].first == -1){      
+    }else{
+      info.fullMatchInfo[ info.positions[i] ].first = info.matchInfo[i].first;
+      if(info.matchInfo[i].second == -1){
+        info.fullMatchInfo[info.positions[i]].second = -1;
+      }else{
+        info.fullMatchInfo[info.positions[i]].second = info.positions[info.matchInfo[i].second];
+      }
+    }
+  }
+}
+void inflateWhitespaces(TextInfo &a,TextInfo &b,Graph matching){
+  naiveInflate(a);
+  naiveInflate(b);
+  
+  int expected =0;
+  for(unsigned int i=0;i<a.important_text.length();++i){
+    if(a.positions[i]!=expected){
+      unsigned int start =expected;
+      unsigned int end=a.positions[i];
+      if(0<matching.getOutDegree(matching.left(i))){
+        unsigned int rightEnd= b.positions[matching.whichRight(matching.getOutEdgeEnd(matching.left(i),0))];
+        unsigned int rightStart=rightEnd;
+        while(0<rightStart && b.states[rightStart-1]==DFA::IGNORABLE && b.fullMatchInfo[rightStart-1].first==-1){
+          --rightStart;
+        }
+        string leftString = a.original_text.substr(start,end-start);
+        string rightString = b.original_text.substr(rightStart,rightEnd-rightStart);
+        cout << "Matching " << start << "-:-" << end << " vs. " << rightStart << "-:-" << rightEnd << endl;
+        vector<pair<int,int> > path = getAnyLCS(lcs(leftString,rightString));
+        cout << "Found " << path.size() << " path" << endl;
+        int lastLeft = a.fullMatchInfo[end].second;
+        int lastRight = b.fullMatchInfo[rightEnd].second;
+        int freeMatchId = a.fullMatchInfo[end].first;
+        assert(freeMatchId == b.fullMatchInfo[rightEnd].first);
+        
+        FOREACH(p,path){
+          a.fullMatchInfo[start+p->first].first = freeMatchId;
+          a.fullMatchInfo[start+p->first].second = lastLeft;
+          lastLeft = start+p->first;
+          b.fullMatchInfo[rightStart+p->second].first = freeMatchId;
+          b.fullMatchInfo[rightStart+p->second].second = lastRight;
+          lastRight = rightStart+p->second;
+        }
+        a.fullMatchInfo[end].second=lastLeft;
+        b.fullMatchInfo[rightEnd].second=lastRight;
+        
+      }      
+    }    
+    expected=a.positions[i]+1;
+  }
+}
+void officialOutput(vector<pair<int,int> > matchInfo){
+  vector<int> open;
+  for(unsigned int i=0;i<matchInfo.size();++i){
+    if(matchInfo[i].first == -1){
+      cout << i << " open 0" << endl;
+      open.push_back(i);
+    }else{
+      if(matchInfo[i].second == -1){
+        cout << i << " open " << (matchInfo[i].first+1) << endl;
+        open.push_back(i);
+      }else{
+        while(!open.empty() && matchInfo[i].second <open.back()){
+          open.pop_back();
+          cout << i << " close" << endl;
+        }
+      }
+    }
+  }
+  while(!open.empty()){
+    open.pop_back();
+    cout << matchInfo.size() << " close" << endl;
+  }
+}
+void getCheapest(string aText,string bText,DFA &dfa){
+  TextInfo a = analyzeText(aText,dfa);
+  TextInfo b = analyzeText(bText,dfa);
   a.matches=indexLongestFragments(a.important_text,b.important_text);
   b.matches=indexLongestFragments(b.important_text,a.important_text);
   a.points = computeSplitPoints(a.matches);
@@ -340,8 +567,49 @@ State getCheapest(State s,DFA &dfa){
   debugDumpAsHtml(weak,"weak");
   Graph strong = weakAndStrong.second;
   debugDumpAsHtml(strong,"strong");
+  ForEachWeak judge(weak);
+  foreachMatching(strong, judge );
+  Graph matching = judge.getBestMatching();
+  vector<Block> blocks = getBlocks(matching);
+  Graph sticks = getBestSticksForBlocks(blocks);
+  debugDumpAsHtml(matching,"best matching!");
+  debugDumpAsHtml(blocks);
+  debugDumpAsHtml(sticks,"winer sticks");
+  a.matchInfo.resize(a.important_text.length(),make_pair(-1,-1));
+  b.matchInfo.resize(b.important_text.length(),make_pair(-1,-1));
 
-  foreachMatching(strong, ForEachWeak(weak));
+  for(unsigned int blockId=0;blockId<blocks.size();++blockId){
+    int continuationOfLeft=-1;
+    int continuationOfRight=-1;
+    int matchId = blockId;
+    if (0<sticks.getOutDegree(sticks.left(blockId))) {
+      unsigned int prevBlockId=sticks.whichRight(sticks.getOutEdgeEnd(sticks.left(blockId),0));
+      continuationOfLeft= matching.whichLeft(blocks[prevBlockId].endSrc()-1);
+      continuationOfRight=matching.whichRight(blocks[prevBlockId].endDest()-1);
+      matchId = a.matchInfo[continuationOfLeft].first;
+    }
+    Block & block= blocks[blockId];
+    storeMatch(matching.whichLeft(block.startSrc),block.length,continuationOfLeft,matchId,a.matchInfo);
+    storeMatch(matching.whichRight(block.startDest),block.length,continuationOfRight,matchId,b.matchInfo);
+  }
+  cout << "<table><tr><td>";
+  debugDumpAsHtml(a.matchInfo);
+  cout << "</td><td>";
+  debugDumpAsHtml(b.matchInfo);
+  cout << "</td></tr></table>";
+
+  inflateWhitespaces(a,b,matching);
+  
+
+
+  cout << "<h1>Official</h1>";
+  cout << "<pre>";
+  cout << "A:" << endl;
+  officialOutput(a.fullMatchInfo);
+  cout << "B:" << endl;
+  officialOutput(b.fullMatchInfo);
+  cout << "</pre>";
+  
   
   /*
   . add edges between letters
@@ -351,7 +619,4 @@ State getCheapest(State s,DFA &dfa){
      . find optimal trees for this matching, honoring braces
   */
   
-  
-  
-  return s;
 }

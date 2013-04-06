@@ -16,6 +16,13 @@ struct Node{
     n->match=0;
     return n;
   }
+  void finishAt(int pos){
+    length = pos-start;
+  }
+  void addCharacter(char c,int pos){
+    innerText.push_back(c);
+    charPos.push_back(pos);
+  }
 };
 bool compareStarts(shared_ptr<Node> a,shared_ptr<Node> b){
   return a->start < b->start;

@@ -49,6 +49,28 @@ LCSDescription lcs(string a,string b){
   }
   return d;
 }
+
+vector<pair<int,int> > getAnyLCS(LCSDescription lcs){
+  vector<pair<int,int> > path;
+  unsigned int a=lcs.size()-1;
+  unsigned int b=lcs.back().size()-1;
+  while(a&&b){
+    if(lcs[a][b] == lcs[a-1][b-1]+1){
+      a--;
+      b--;
+      path.push_back(make_pair(a,b));      
+    }else{
+      if(lcs[a][b] == lcs[a-1][b]){
+        a--;
+      }else{
+        b--;
+      }
+    }
+  }
+  reverse(path.begin(),path.end());
+  return path;
+}
+
 template<typename T,typename I>
 bool contains(I begin,I end,T x){
   for(auto i=begin;i!=end;++i){

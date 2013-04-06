@@ -11,6 +11,13 @@ public:
   bool edgeExists(unsigned int from,unsigned int to){
     return contains(edges[from].begin(),edges[from].end(),to);
   }
+  unsigned int getEdgesCount(){
+    unsigned int acc=0;
+    for(unsigned int id=0;id<edges.size();++id){
+      acc+=edges[id].size();
+    }
+    return acc;
+  }
   unsigned int getLeftSize(){
     return leftSize;
   }
@@ -28,6 +35,14 @@ public:
   }
   unsigned int left(unsigned int pos){
     return 1+pos;
+  }
+  unsigned int whichLeft(unsigned int id){
+    assert(1<=id && id < 1+ leftSize);
+    return id-1;
+  }
+  unsigned int whichRight(unsigned int id){
+    assert(1+leftSize<=id);
+    return id-1-leftSize;
   }
   unsigned int right(unsigned int pos){
     return 1+leftSize+pos;
@@ -49,5 +64,9 @@ public:
     assert(!edgeExists(from,to));
     edges[from].push_back(to);
     assert(edgeExists(from,to));
+  }
+  void addEdges(unsigned int a,unsigned int b){
+    addEdge(a,b);
+    addEdge(b,a);
   }
 };
