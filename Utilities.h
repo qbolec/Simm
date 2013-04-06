@@ -38,3 +38,12 @@ LCSDescription lcs(string a,string b){
   }
   return d;
 }
+template<typename T,typename I>
+bool contains(I begin,I end,T x){
+  for(auto i=begin;i!=end;++i){
+    if(*i == x){
+      return true;
+    }
+  }
+}
+  

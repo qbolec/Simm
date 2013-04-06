@@ -7,6 +7,10 @@ public:
     leftSize(leftSize),rightSize(rightSize){
     edges.resize(2+leftSize+rightSize);
   }
+  
+  bool edgeExists(unsigned int from,unsigned int to){
+    return contains(edges[from].begin(),edges[from].end(),to);
+  }
   unsigned int getLeftSize(){
     return leftSize;
   }
@@ -33,6 +37,8 @@ public:
     return edges[id][i];
   }
   void addEdge(unsigned int from,unsigned int to){
+    assert(!edgeExists(from,to));
     edges[from].push_back(to);
+    assert(edgeExists(from,to));
   }
 };

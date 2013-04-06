@@ -22,9 +22,9 @@ vector<int> range(int from,int to){
 }
 struct Match{
   unsigned int startSrc;
-  unsigned int startDest;
+  vector<unsigned int> startDest;
   unsigned int length;
-  Match(unsigned int startSrc,unsigned int startDest,unsigned int length):
+  Match(unsigned int startSrc,vector<unsigned int> startDest,unsigned int length):
     startSrc(startSrc),startDest(startDest),length(length){
   };
 };
@@ -48,15 +48,18 @@ TextInfo analyzeText(string text,DFA &dfa){
   }
   return a;
 }
-pair<unsigned int,unsigned int> longestMatch(string prefix,string body){
-  pair<unsigned int,unsigned int> best(0,0);
+pair<unsigned int,vector<unsigned int > > longestMatch(string prefix,string body){
+  pair<unsigned int,vector<unsigned int > > best(0,vector<unsigned int>());
   for(unsigned int start=0;start<body.length();++start){
     unsigned int length;
     for(length=0;start+length<body.length() && length<prefix.length() && prefix[length]==body[start+length];++length){
     }
     if(best.first<length){
       best.first = length;
-      best.second = start;
+      best.second = vector<unsigned int>();
+    }
+    if(best.first == length){
+      best.second.push_back(start);
     }
   }
   return best;
@@ -65,7 +68,7 @@ vector<Match> indexLongestFragments(string a,string b){
   vector<Match> matches;
   unsigned int furthest = 0;
   for(unsigned int start = 0;start<a.length();++start){
-    pair<unsigned int,unsigned int> lenAndPos = longestMatch(a.substr(start),b);
+    pair<unsigned int,vector<unsigned int> > lenAndPos = longestMatch(a.substr(start),b);
     if(0<lenAndPos.first && furthest<start+lenAndPos.first){
       furthest=start+lenAndPos.first;
       matches.push_back(Match(start,lenAndPos.second,lenAndPos.first));
@@ -149,13 +152,17 @@ vector<pair<unsigned int,pair<bool,unsigned int> > > computeSplitPoints(vector<M
 Graph createGraph(TextInfo a,TextInfo b){
   Graph g(a.important_text.length(),b.important_text.length());
   for(unsigned int i=0;i<a.matches.size();++i){
-    for(unsigned int p=0;p<a.matches[i].length;++p){
-      g.addEdge(g.left(a.matches[i].startSrc+p),g.right(a.matches[i].startDest+p));
+    for(unsigned int m=0;m<a.matches[i].startDest.size();++m){
+      for(unsigned int p=0;p<a.matches[i].length;++p){
+        g.addEdge(g.left(a.matches[i].startSrc+p),g.right(a.matches[i].startDest[m]+p));
+      }
     }
   }
   for(unsigned int i=0;i<b.matches.size();++i){
-    for(unsigned int p=0;p<b.matches[i].length;++p){
-      g.addEdge(g.right(b.matches[i].startSrc+p),g.left(b.matches[i].startDest+p));
+    for(unsigned int m=0;m<b.matches[i].startDest.size();++m){
+      for(unsigned int p=0;p<b.matches[i].length;++p){
+        g.addEdge(g.right(b.matches[i].startSrc+p),g.left(b.matches[i].startDest[m]+p));
+      }
     }
   }
   return g;
@@ -197,6 +204,33 @@ void debugDumpAsHtml(Graph g){
   cout << "</pre></td></tr></table>";
   
 }
+pair<Graph,Graph> getWeakAndStrong(Graph g){
+  Graph strong(g.getLeftSize(),g.getRightSize());
+  Graph weak(g.getLeftSize(),g.getRightSize());
+  for(unsigned int i=0;i<g.getLeftSize();++i){
+    unsigned int id = g.left(i);
+    for(unsigned int j=0;j<g.getOutDegree(id);++j){
+      unsigned int endId = g.getOutEdgeEnd(id,j);
+      if(g.edgeExists(endId,id)){
+        strong.addEdge(id,endId);        
+      }else{
+        weak.addEdge(id,endId);
+      }
+    }
+  }
+  for(unsigned int i=0;i<g.getRightSize();++i){
+    unsigned int id = g.right(i);
+    for(unsigned int j=0;j<g.getOutDegree(id);++j){
+      unsigned int endId = g.getOutEdgeEnd(id,j);
+      if(g.edgeExists(endId,id)){
+        strong.addEdge(id,endId);        
+      }else{
+        weak.addEdge(id,endId);
+      }
+    }
+  }
+  return make_pair(weak,strong);
+}
 State getCheapest(State s,DFA &dfa){
   TextInfo a = analyzeText(s.a->innerText,dfa);
   TextInfo b = analyzeText(s.b->innerText,dfa);
@@ -211,6 +245,12 @@ State getCheapest(State s,DFA &dfa){
   cout << "</td></tr></table>";
   Graph g = createGraph(a,b);
   debugDumpAsHtml(g);
+  auto weakAndStrong = getWeakAndStrong(g);
+  Graph weak = weakAndStrong.first;
+  debugDumpAsHtml(weak);
+  Graph strong = weakAndStrong.second;
+  debugDumpAsHtml(strong);  
+  
   /*
   . add edges between letters
   . mark strong edges
