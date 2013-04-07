@@ -375,10 +375,7 @@ struct JudgeSticking{
   JudgeSticking(vector<Block> blocks):blocks(blocks),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0){
   }
   void operator()(Graph sticks){
-<<<<<<< HEAD
-=======
     //debugDumpAsHtml(sticks,"sticks");
->>>>>>> be consequent
     unsigned int edgesCount = sticks.getEdgesCount();
     assert(edgesCount%2==0);
     if(bestSticksCount < edgesCount){
@@ -410,10 +407,7 @@ vector<Block> getBlocks(Graph matching){
   return blocks;
 }
 Graph getBestSticksForBlocks(vector<Block> blocks ){
-<<<<<<< HEAD
-=======
   //debugDumpAsHtml(blocks);
->>>>>>> be consequent
   JudgeSticking judge(blocks);
   foreachBlocksSticking(blocks,judge);
   return judge.getBestSticks();
