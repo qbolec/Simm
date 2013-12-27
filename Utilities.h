@@ -49,6 +49,11 @@ LCSDescription lcs(string a,string b){
   }
   return d;
 }
+int editDistance(string a,string b){
+  cerr << '[' << a << " vs. " << b << ']' << endl;
+  LCSDescription desc = lcs(a,b);
+  return a.length()+b.length()-2*desc.back().back();
+}
 
 vector<pair<int,int> > getAnyLCS(LCSDescription lcs){
   vector<pair<int,int> > path;

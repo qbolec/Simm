@@ -26,19 +26,46 @@ TextInfo analyzeText(string text,DFA &dfa){
   TextInfo a;
   a.original_text = text;
   a.states = tagLetters(text,dfa);
+  vector<unsigned int> stack;
   for(unsigned int i=0;i<a.states.size();++i){
     if(a.states[i] != DFA::IGNORABLE){
       a.positions.push_back(i);
       a.important_text.push_back(text[i]);
+      a.next.push_back(a.positions.size());
+      if(a.states[i] == DFA::OPEN_BRACKET){
+        stack.push_back(a.positions.size()-1);
+      }else if(a.states[i] == DFA::END_BRACKET){
+        if(!stack.empty()){
+          unsigned int prev = stack.back();
+          stack.pop_back();
+          assert(a.next.size()>=2);
+          assert(a.next.size() == a.positions.size());
+          if(a.next.size()-2 != prev){
+            a.next[prev] = a.positions.size()-1;
+            a.next[a.next.size()-2] = a.states.size();//infinity
+          }
+        }
+      }
+    }
+  }
+  if(!stack.empty()){
+    cerr << "failed to match brackets" << endl;
+    for(unsigned int i=0;i<a.next.size();++i){
+      a.next[i]=i+1;
     }
   }
   return a;
 }
-pair<unsigned int,vector<unsigned int > > longestMatch(string prefix,string body){
+pair<unsigned int,vector<unsigned int > > longestMatch(TextInfo a,int offset,TextInfo b){
   pair<unsigned int,vector<unsigned int > > best(0,vector<unsigned int>());
-  for(unsigned int start=0;start<body.length();++start){
-    unsigned int length;
-    for(length=0;start+length<body.length() && length<prefix.length() && prefix[length]==body[start+length];++length){
+  for(unsigned int start=0;start<b.important_text.length();++start){
+    unsigned int length=0;
+    unsigned int at = offset;
+    unsigned int bt = start;
+    while(at<a.important_text.length() && bt<b.important_text.length() && a.important_text[at] == b.important_text[bt]){
+      ++length;
+      at=a.next[at];
+      bt=b.next[bt];
     }
     if(best.first<length){
       best.first = length;
@@ -48,18 +75,73 @@ pair<unsigned int,vector<unsigned int > > longestMatch(string prefix,string body
       best.second.push_back(start);
     }
   }
+  if(best.second.size()>1 && best.first>0){
+    assert(best.first > 0);
+    unsigned int longest_common=0;
+    vector<unsigned int> best2;
+    FOREACH(m,best.second){
+      unsigned int length=0;
+      unsigned int at = offset;
+      unsigned int bt = *m;
+      while(length+1<best.first){
+        ++length;
+        at=a.next[at];
+        bt=b.next[bt];
+      }
+      string as = a.important_text.substr(offset,at-offset+1);
+      string bs = b.important_text.substr(*m,bt-*m+1);
+      unsigned int common_prefix=0;
+      unsigned int common_suffix=0;
+      while(common_prefix < as.length() && common_prefix < bs.length() && as[common_prefix]==bs[common_prefix]){
+        common_prefix++;
+        common_prefix++;
+      }
+      while(common_suffix < as.length() && common_suffix < bs.length() && as[as.length()-1-common_suffix]==bs[bs.length()-1-common_suffix]){
+        common_suffix++;
+        common_suffix++;
+      }
+      unsigned int common = common_prefix+common_suffix;
+      if(longest_common<common){
+        longest_common=common;
+        best2.clear();
+      }
+      if(longest_common==common){
+        best2.push_back(*m);
+      }
+    }
+    swap(best2,best.second);
+  }
   return best;
 }
-vector<Match> indexLongestFragments(string a,string b){
+vector<Match> indexLongestFragments(TextInfo a,int positionIndex,TextInfo b){
+  cerr << "indexLongestFragments " << positionIndex << endl;
   vector<Match> matches;
   unsigned int furthest = 0;
-  for(unsigned int start = 0;start<a.length();++start){
-    pair<unsigned int,vector<unsigned int> > lenAndPos = longestMatch(a.substr(start),b);
-    if(0<lenAndPos.first && furthest<start+lenAndPos.first){
-      furthest=start+lenAndPos.first;
+  for(unsigned int start = positionIndex;start<a.important_text.length();){
+    cerr << "Indexing " << start << endl;
+    pair<unsigned int,vector<unsigned int> > lenAndPos = longestMatch(a,start,b);
+    unsigned int last = start;
+    for(unsigned int i=0;i<lenAndPos.first;++i){
+      last = a.next[last];
+    }
+    if(0<lenAndPos.first && furthest<last){
+      furthest=last;
+      cerr << "Found match " << start << " " << lenAndPos.first << " " << lenAndPos.second[0] << "(" << lenAndPos.second.size() << endl;
       matches.push_back(Match(start,lenAndPos.second,lenAndPos.first));
     }
+    if(a.next[start] >= a.important_text.length()){
+      break;
+    }
+    if(a.next[start] != start+1){
+      vector<Match> innerMatches = indexLongestFragments(a,start+1,b);
+      FOREACH(match,innerMatches){
+        cerr << "Repushing " << match->startSrc << " " << match->length << " " << match->startDest[0] << "(" << match->startDest.size() << endl;
+        matches.push_back(*match);
+      }
+    }
+    start = a.next[start];
   }
+  cerr << "exit indexLongestFragments" << positionIndex << endl;
   return matches;
 }
 string makeVisibleChar(char x){
@@ -97,57 +179,38 @@ void debugDumpAsHtml(TextInfo a){
     }
   }
   cerr << "</pre>";
-  cerr << "<h1>visualized fragments:</h1>";
-  cerr << "<pre>";
-
-  unsigned int waiting = 0;
-  set<unsigned int> opened;
-  for(unsigned int i=0;i<a.important_text.length();++i){
-    bool needsChange = (waiting< a.points.size() && a.points[waiting].first == i);
-    while(waiting< a.points.size() && a.points[waiting].first == i){
-      if(!a.points[waiting].second.first){
-        opened.erase(a.points[waiting].second.second);
-        cerr << "<b>}" << a.points[waiting].second.second << "</b>";
-      }else{
-        opened.insert(a.points[waiting].second.second);
-        cerr << "<b>" << a.points[waiting].second.second << "{</b>";
-      }
-      waiting++;
-    }
-    cerr << makeVisibleChar(a.important_text[i]);
-  }
-  while(waiting< a.points.size() && a.points[waiting].first == a.important_text.length()){
-    assert(!a.points[waiting].second.first);
-    opened.erase(a.points[waiting].second.second);
-    cerr << "<b>}" << a.points[waiting].second.second << "</b>";
-    waiting++;
-  }
-  assert(opened.empty());
-  cerr << "</pre>";
-  
-}
-vector<pair<unsigned int,pair<bool,unsigned int> > > computeSplitPoints(vector<Match> &matches){
-  vector<pair<unsigned int,pair<bool,unsigned int> > > points;
-  for(unsigned int i=0;i<matches.size();++i){
-    points.push_back(make_pair(matches[i].startSrc,make_pair(true,i)));
-    points.push_back(make_pair(matches[i].startSrc+matches[i].length,make_pair(false,i)));
-  }
-  sort(points.begin(),points.end());
-  return points;
 }
 Graph createGraph(TextInfo a,TextInfo b){
   Graph g(a.important_text.length(),b.important_text.length());
   for(unsigned int i=0;i<a.matches.size();++i){
+    cerr << "i=" << i << " of " << a.matches.size() << endl;
     for(unsigned int m=0;m<a.matches[i].startDest.size();++m){
+      cerr << "m=" << m << " of " << a.matches[i].startDest.size() << endl;
+      unsigned int at=a.matches[i].startSrc;
+      unsigned int bt=a.matches[i].startDest[m];
       for(unsigned int p=0;p<a.matches[i].length;++p){
-        g.addEdge(g.left(a.matches[i].startSrc+p),g.right(a.matches[i].startDest[m]+p));
+        cerr << "p=" << p << " of " << a.matches[i].length << endl;
+        assert(at < a.important_text.length());
+        assert(bt < b.important_text.length());
+        g.addEdge(g.left(at),g.right(bt));
+        at=a.next[at];
+        bt=b.next[bt];
       }
     }
   }
   for(unsigned int i=0;i<b.matches.size();++i){
+    cerr << "i=" << i << " of " << a.matches.size() << endl;
     for(unsigned int m=0;m<b.matches[i].startDest.size();++m){
+      cerr << "m=" << m << " of " << a.matches[i].startDest.size() << endl;
+      unsigned int bt=b.matches[i].startSrc;
+      unsigned int at=b.matches[i].startDest[m];
       for(unsigned int p=0;p<b.matches[i].length;++p){
-        g.addEdge(g.right(b.matches[i].startSrc+p),g.left(b.matches[i].startDest[m]+p));
+        cerr << "p=" << p << " of " << a.matches[i].length << endl;
+        assert(at < a.important_text.length());
+        assert(bt < b.important_text.length());
+        g.addEdge(g.right(bt),g.left(at));
+        at=a.next[at];
+        bt=b.next[bt];
       }
     }
   }
@@ -370,16 +433,68 @@ void foreachBlocksSticking(vector<Block> blocks,Callback &foo){
 }
 struct JudgeSticking{
   vector<Block> blocks;
+  TextInfo a;
+  TextInfo b;
   Graph bestSticks;
   unsigned int bestSticksCount;
-  JudgeSticking(vector<Block> blocks):blocks(blocks),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0){
+  JudgeSticking(vector<Block> blocks,TextInfo a,TextInfo b):blocks(blocks),a(a),b(b),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0){
+  }
+  int getBBlock(unsigned int bp){
+    for(unsigned int b=0;b<blocks.size();++b){
+      if(blocks[b].containsDest(bp+1+a.next.size())){
+        return b;
+      }
+    }
+    return -1;
+  }
+  int getABlock(unsigned int ap){
+    for(unsigned int b=0;b<blocks.size();++b){
+      if(blocks[b].containsSrc(ap+1)){
+        return b;
+      }
+    }
+    return -1;
+  }
+  bool areBlocksConnected(unsigned int ab,unsigned int bb,Graph sticks){
+    if(ab==bb){
+      return true;
+    }
+    if(bb<ab){
+      return false;
+    }
+    if(!sticks.getOutDegree(sticks.right(ab))){
+      return false;
+    }
+    assert(sticks.getOutDegree(sticks.right(ab))==1);
+    return areBlocksConnected(sticks.whichLeft(sticks.getOutEdgeEnd(sticks.right(ab),0)),bb,sticks);
   }
   void operator()(Graph sticks){
+    unsigned int bonus = 0;
+    for(unsigned int i=0;i<a.next.size();++i){
+      if(a.next[i]!=i+1 && a.next[i]<a.next.size()){
+        int pb=getABlock(i);
+        int nb=getABlock(a.next[i]);
+        if(-1<=pb && -1<=nb && areBlocksConnected(pb,nb,sticks)){
+          bonus++;
+        }
+      }
+    }
+    for(unsigned int i=0;i<b.next.size();++i){
+      if(b.next[i]!=i+1 && b.next[i]<b.next.size()){
+        int pb=getBBlock(i);
+        int nb=getBBlock(b.next[i]);
+        if(-1<=pb && -1<=nb && areBlocksConnected(pb,nb,sticks)){
+          bonus++;
+        }
+      }
+    }
+
     //debugDumpAsHtml(sticks,"sticks");
     unsigned int edgesCount = sticks.getEdgesCount();
+    cerr << "Bonus is " << bonus <<  " edgesCount is " << edgesCount << endl;
     assert(edgesCount%2==0);
-    if(bestSticksCount < edgesCount){
-      bestSticksCount = edgesCount;
+    if(bestSticksCount < edgesCount*10+bonus){
+      bestSticksCount = edgesCount*10+bonus;
       bestSticks = sticks;
     }
   }
@@ -406,21 +521,38 @@ vector<Block> getBlocks(Graph matching){
   }  
   return blocks;
 }
-Graph getBestSticksForBlocks(vector<Block> blocks ){
+Graph getBestSticksForBlocks(vector<Block> blocks,TextInfo a,TextInfo b ){
   //debugDumpAsHtml(blocks);
-  JudgeSticking judge(blocks);
+  JudgeSticking judge(blocks,a,b);
   foreachBlocksSticking(blocks,judge);
   return judge.getBestSticks();
 }
-Graph getBestSticksForMatching(Graph matching){
-  return getBestSticksForBlocks(getBlocks(matching));
+Graph getBestSticksForMatching(Graph matching,TextInfo a,TextInfo b){
+  return getBestSticksForBlocks(getBlocks(matching),a,b);
 }
-unsigned int cost(Graph matching){
-  Graph sticks = getBestSticksForMatching(matching);
+unsigned int cost(Graph matching,TextInfo a,TextInfo b){
+  Graph sticks = getBestSticksForMatching(matching,a,b);
   unsigned int numberOfLetters = matching.getLeftSize()+matching.getRightSize();
   unsigned int matchedLetters = matching.getEdgesCount();
   assert(matchedLetters%2 == 0);
   assert(matchedLetters <= numberOfLetters);
+  unsigned int unmatchedGroups = 0;
+  for(unsigned int i=0;i<matching.getLeftSize();++i){
+    unsigned int id = matching.left(i);
+    if(matching.getOutDegree(id)==0){
+      if(i==0 || matching.getOutDegree(id-1)!=0){
+        unmatchedGroups++;
+      }
+    }
+  }
+  for(unsigned int i=0;i<matching.getRightSize();++i){
+    unsigned int id = matching.right(i);
+    if(matching.getOutDegree(id)==0){
+      if(i==0 || matching.getOutDegree(id-1)!=0){
+        unmatchedGroups++;
+      }
+    }
+  }
   unsigned int unmatchedLetters = numberOfLetters-matchedLetters;
   unsigned int matches = sticks.getLeftSize();
   assert(matches == sticks.getRightSize());
@@ -428,22 +560,24 @@ unsigned int cost(Graph matching){
   assert(sticked%2 == 0);
   unsigned int sticksCount = sticked/2;
   assert(sticksCount==0 || sticksCount< matches);
-  unsigned int cost = unmatchedLetters + matches-sticksCount;
+  unsigned int cost = unmatchedLetters + unmatchedGroups + matches-sticksCount;
   return cost;
 }
  
 struct ProcessMatching{
   Graph strongMatching;
+  TextInfo a;
+  TextInfo b;
   Graph bestMatching;
   unsigned int bestCost;
-  ProcessMatching(Graph strongMatching):strongMatching(strongMatching),bestMatching(strongMatching){
-    bestCost=cost(strongMatching);
+  ProcessMatching(Graph strongMatching,TextInfo a,TextInfo b):strongMatching(strongMatching),a(a),b(b),bestMatching(strongMatching){
+    bestCost=cost(strongMatching,a,b);
   }
   void operator()(Graph matching){
     Graph merged = merge(strongMatching,matching);
     //debugDumpAsHtml(strongMatching,"strong matching");
     //debugDumpAsHtml(matching,"matching");
-    const unsigned int c = cost(merged);
+    const unsigned int c = cost(merged,a,b);
     if(c < bestCost){
       bestCost = c;
       bestMatching = merged;
@@ -455,10 +589,12 @@ struct ProcessMatching{
 };
 struct ForEachWeak{
   Graph weak;
+  TextInfo a;
+  TextInfo b;
   Graph bestMatching;
   unsigned int bestCost;
-  ForEachWeak(Graph weak):weak(weak),bestMatching(weak.getLeftSize(),weak.getRightSize()){
-    bestCost = cost(bestMatching);
+  ForEachWeak(Graph weak,TextInfo a,TextInfo b):weak(weak),a(a),b(b),bestMatching(weak.getLeftSize(),weak.getRightSize()){
+    bestCost = cost(bestMatching,a,b);
   }
   void operator()(Graph strongMatching){
     Graph leftOvers=weak;
@@ -471,10 +607,10 @@ struct ForEachWeak{
       }
     }
     debugDumpAsHtml(leftOvers,"left overs");
-    ProcessMatching judge(strongMatching);
+    ProcessMatching judge(strongMatching,a,b);
     foreachMatching(leftOvers,judge);
     Graph matching = judge.getBestMatching();
-    unsigned int c=cost(matching);
+    unsigned int c=cost(matching,a,b);
     if(c<bestCost){
       bestCost = c;
       bestMatching = matching;
@@ -578,22 +714,24 @@ void officialOutput(vector<pair<int,int> > matchInfo){
 void getCheapest(string aText,string bText,DFA &dfa){
   TextInfo a = analyzeText(aText,dfa);
   TextInfo b = analyzeText(bText,dfa);
-  a.matches=indexLongestFragments(a.important_text,b.important_text);
-  b.matches=indexLongestFragments(b.important_text,a.important_text);
-  a.points = computeSplitPoints(a.matches);
-  b.points = computeSplitPoints(b.matches);
-  cerr << "<table><tr><td>";
-  cerr << "</td><td>";
-  cerr << "</td></tr></table>";
+  a.matches=indexLongestFragments(a,0,b);
+  FOREACH(match,a.matches){
+    cerr << "a: " << match->startSrc << " " << match->length << " " << match->startDest[0] << "(" << match->startDest.size() << endl;
+  }
+  b.matches=indexLongestFragments(b,0,a);
+  FOREACH(match,b.matches){
+    cerr << "b: " << match->startSrc << " " << match->length << " " << match->startDest[0] << "(" << match->startDest.size() << endl;
+  }
   Graph g = createGraph(a,b);
+  debugDumpAsHtml(g,"g");
   pair<Graph,Graph> weakAndStrong = getWeakAndStrong(g);
   Graph weak = weakAndStrong.first;
   Graph strong = weakAndStrong.second;
-  ForEachWeak judge(weak);
+  ForEachWeak judge(weak,a,b);
   foreachMatching(strong, judge );
   Graph matching = judge.getBestMatching();
   vector<Block> blocks = getBlocks(matching);
-  Graph sticks = getBestSticksForBlocks(blocks);
+  Graph sticks = getBestSticksForBlocks(blocks,a,b);
   a.matchInfo.resize(a.important_text.length(),make_pair(-1,-1));
   b.matchInfo.resize(b.important_text.length(),make_pair(-1,-1));
 
@@ -611,9 +749,6 @@ void getCheapest(string aText,string bText,DFA &dfa){
     storeMatch(matching.whichLeft(block.startSrc),block.length,continuationOfLeft,matchId,a.matchInfo);
     storeMatch(matching.whichRight(block.startDest),block.length,continuationOfRight,matchId,b.matchInfo);
   }
-  cerr << "<table><tr><td>";
-  cerr << "</td><td>";
-  cerr << "</td></tr></table>";
 
   inflateWhitespaces(a,b,matching);
   

@@ -10,4 +10,10 @@ struct Block{
   unsigned int endDest(){
     return startDest+length;
   }
+  bool containsSrc(unsigned int src){
+    return startSrc <= src && src<startSrc+length;
+  }
+  bool containsDest(unsigned int dest){
+    return startDest <= dest && dest<startDest +length;
+  }
 };
