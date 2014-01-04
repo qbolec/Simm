@@ -344,7 +344,7 @@ struct JudgeSticking{
 
     //debugDumpAsHtml(sticks,"sticks");
     unsigned int edgesCount = sticks.getEdgesCount();
-    cerr << "edgesCount is " << edgesCount << endl;
+    //cerr << "edgesCount is " << edgesCount << endl;
     assert(edgesCount%2==0);
     if(bestSticksCount < edgesCount){
       bestSticksCount = edgesCount;
@@ -413,7 +413,7 @@ unsigned int cost(Graph matching,TextInfo a,TextInfo b){
   assert(sticked%2 == 0);
   unsigned int sticksCount = sticked/2;
   assert(sticksCount==0 || sticksCount< matches);
-  unsigned int cost = unmatchedLetters + unmatchedGroups + matches-sticksCount;
+  unsigned int cost = (unmatchedLetters + unmatchedGroups + matches-sticksCount)*10+matches;
   return cost;
 }
  
@@ -590,7 +590,27 @@ vector<vector<pair<int,int> > > getDominantBlocks(TextInfo a,TextInfo b){
       cerr << " " << dominantBlocks[i][j].first << ": " << a.important_text[dominantBlocks[i][j].first] << "  -- " << dominantBlocks[i][j].second << ": " << b.important_text[dominantBlocks[i][j].second] << endl;
     }
   }
-  return dominantBlocks;
+  vector<vector<pair<int,int> > > shortBlocks;
+  for(unsigned int i=0;i<dominantBlocks.size();++i){
+    unsigned int last=0;
+    for(unsigned int j=1;j<=dominantBlocks[i].size();++j){
+      if(j==dominantBlocks[i].size() || dominantBlocks[i][j-1].first!=dominantBlocks[i][j].first-1 || dominantBlocks[i][j-1].second!=dominantBlocks[i][j].second-1){
+        vector<pair<int,int> > slice;
+        for(unsigned int k=last;k<j;++k){
+          slice.push_back(dominantBlocks[i][k]);
+        }
+        shortBlocks.push_back(slice);
+        last = j;
+      }
+    }
+  }
+  for(unsigned int i=0;i<shortBlocks.size();++i){
+    cerr << "Short block #" << i << " is:" << endl;
+    for(unsigned int j=0;j<shortBlocks[i].size();++j){
+      cerr << " " << shortBlocks[i][j].first << ": " << a.important_text[shortBlocks[i][j].first] << "  -- " << shortBlocks[i][j].second << ": " << b.important_text[shortBlocks[i][j].second] << endl;
+    }
+  }
+  return shortBlocks;
 }
 bool blocksConflict(const vector<pair<int,int> > & blockX,const vector<pair<int,int> > & blockY){
   set<int> left;
@@ -639,9 +659,21 @@ struct OnEachBlocksSequence{
         }
       }
     }
-    debugDumpAsHtml(matching,"Candidate matching");
+    for(unsigned int i=0;i<a.important_text.length();++i){
+      if(a.next[i] < a.important_text.length()){
+        if(matching.getOutDegree(matching.left(i)) != matching.getOutDegree(matching.left(a.next[i]))){
+          return;
+        }
+        if(matching.getOutDegree(matching.left(i))){
+          if(b.next[matching.whichRight(matching.getOutEdgeEnd(matching.left(i),0))] != matching.whichRight(matching.getOutEdgeEnd(matching.left(a.next[i]),0))){
+            return;
+          }
+        }
+      }
+    }
+    //debugDumpAsHtml(matching,"Candidate matching");
     unsigned int currentCost = cost(matching,a,b);
-    cerr << "cost of this matching is " << currentCost << endl;
+    //cerr << "cost of this matching is " << currentCost << endl;
     if(currentCost < bestCost){
       bestCost = currentCost;
       bestMatching = matching;
@@ -649,11 +681,7 @@ struct OnEachBlocksSequence{
   }
 };
 void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
-  //TODO go trough topolocial orders of DAGs of conflictingBlocks, not all perumations of dominantBlocks
-/*  vector<int> permutation;
-  for(unsigned int i=0;i<dominantBlocks.size();++i){
-    permutation.push_back(i);
-  }*/
+  //TODO: interleave generation of DAG with verifiying/ensuring that it is a DAG, which should change complexity from O(2^k) to O(something * possible dags)
   for(unsigned long long x=1ULL<<conflictingBlocks.size();x--;){
     vector<vector<int> > dag(dominantBlocks.size());
     vector<int> depsCnt(dominantBlocks.size(),0);
@@ -685,29 +713,19 @@ void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlock
       }
     }
     if(permutation.size()!=dominantBlocks.size()){
-      cerr << "Skipping a graph with cycle" << endl;
+      //cerr << "Skipping a graph with cycle" << endl;
       continue;
     }
     vector<vector<pair<int,int> > > blocks;
-    cerr << "Consider permutation of blocks [";
+    //cerr << "Consider permutation of blocks [";
     for(unsigned i=0;i<permutation.size();++i){
-      cerr << permutation[i] << ",";
+     // cerr << permutation[i] << ",";
       blocks.push_back(dominantBlocks[permutation[i]]);
     }
-    cerr << "]" << endl;
+    //cerr << "]" << endl;
     visitor.onBlocksSequence(blocks);
 
-  }/*
-  do{
-    vector<vector<pair<int,int> > > blocks;
-    cerr << "Consider permutation of blocks [";
-    for(unsigned i=0;i<permutation.size();++i){
-      cerr << permutation[i] << ",";
-      blocks.push_back(dominantBlocks[permutation[i]]);
-    }
-    cerr << "]" << endl;
-    visitor.onBlocksSequence(blocks);
-  }while(next_permutation(permutation.begin(),permutation.end()));*/
+  }
 }
 Graph getBestMatching(TextInfo a,TextInfo b){
   vector<vector<pair<int,int> > > dominantBlocks=getDominantBlocks(a,b);
@@ -722,7 +740,9 @@ void getCheapest(string aText,string bText,DFA &dfa){
   
   Graph matching = getBestMatching(a,b);
   vector<Block> blocks = getBlocks(matching);
+  //debugDumpAsHtml(blocks);
   Graph sticks = getBestSticksForBlocks(blocks,a,b);
+  //debugDumpAsHtml(sticks,"sticks");
   a.matchInfo.resize(a.important_text.length(),make_pair(-1,-1));
   b.matchInfo.resize(b.important_text.length(),make_pair(-1,-1));
 
@@ -736,7 +756,7 @@ void getCheapest(string aText,string bText,DFA &dfa){
       continuationOfLeft= matching.whichLeft(blocks[prevBlockId].endSrc()-1);
       continuationOfRight=matching.whichRight(blocks[prevBlockId].endDest()-1);
       assert(a.matchInfo[continuationOfLeft].first == b.matchInfo[continuationOfRight].first);
-      cerr << "changing " << matchId << " to " << a.matchInfo[continuationOfLeft].first << endl;
+      //cerr << "changing " << matchId << " to " << a.matchInfo[continuationOfLeft].first << endl;
       matchId = a.matchInfo[continuationOfLeft].first;
     }else{
       matchId = freeMatchId++;
@@ -759,13 +779,5 @@ void getCheapest(string aText,string bText,DFA &dfa){
   officialOutput(b.fullMatchInfo);
   cerr << "</pre>";
   
-  
-  /*
-  . add edges between letters
-  . mark strong edges
-  . match braces
-  . foreach matching optimal in strong edges (and edges):
-     . find optimal trees for this matching, honoring braces
-  */
   
 }
