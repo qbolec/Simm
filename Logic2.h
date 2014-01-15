@@ -512,6 +512,7 @@ void officialOutput(vector<pair<int,int> > matchInfo){
   }
 }
 void dfs(const TextInfo &a,const TextInfo &b,unsigned int ai,unsigned int bi,int color,vector<vector<int> > &blockId){
+  assert(ai < a.important_text.length() && bi < b.important_text.length());
   assert(a.important_text[ai]==b.important_text[bi]);
   if(blockId[ai][bi]==color){
     return;
@@ -591,22 +592,25 @@ vector<vector<pair<int,int> > > getDominantBlocks(TextInfo a,TextInfo b){
     }
   }
   vector<vector<pair<int,int> > > shortBlocks;
-  for(unsigned int i=0;i<dominantBlocks.size();++i){
-    unsigned int last=0;
-    for(unsigned int j=1;j<=dominantBlocks[i].size();++j){
-      if(j==dominantBlocks[i].size() || dominantBlocks[i][j-1].first!=dominantBlocks[i][j].first-1 || dominantBlocks[i][j-1].second!=dominantBlocks[i][j].second-1){
-        vector<pair<int,int> > slice;
-        for(unsigned int k=last;k<j;++k){
-          slice.push_back(dominantBlocks[i][k]);
-        }
-        shortBlocks.push_back(slice);
-        last = j;
+  for(unsigned int i=0;i<dominantBlocks.size();++i)if(dominantBlocks[i].size()>1){
+    map<int,int> diffToBlockId;
+    for(unsigned int j=0;j<dominantBlocks[i].size();++j){
+      int diff = dominantBlocks[i][j].first-dominantBlocks[i][j].second;
+      if(diffToBlockId.find(diff)==diffToBlockId.end() || shortBlocks[diffToBlockId[diff]].back().first!= dominantBlocks[i][j].first-1){
+        diffToBlockId[diff] = shortBlocks.size();
+        shortBlocks.push_back(vector<pair<int,int> >());
       }
+//      cerr << "Pushing " << dominantBlocks[i][j].first << " --> " << dominantBlocks[i][j].second << " with diff " << diff << " at " << diffToBlockId[diff] <<  endl ;
+      shortBlocks[diffToBlockId[diff]].push_back(dominantBlocks[i][j]);
     }
   }
+  cerr << "There are " << shortBlocks.size() << " short blocks" << endl;
   for(unsigned int i=0;i<shortBlocks.size();++i){
     cerr << "Short block #" << i << " is:" << endl;
     for(unsigned int j=0;j<shortBlocks[i].size();++j){
+      if(a.important_text.length() <= shortBlocks[i][j].first || b.important_text.length() <= shortBlocks[i][j].second){
+        cerr << "WTF is this: " << shortBlocks[i][j].first << " ---> " << shortBlocks[i][j].second << endl;
+      }
       cerr << " " << shortBlocks[i][j].first << ": " << a.important_text[shortBlocks[i][j].first] << "  -- " << shortBlocks[i][j].second << ": " << b.important_text[shortBlocks[i][j].second] << endl;
     }
   }
@@ -646,9 +650,11 @@ struct OnEachBlocksSequence{
   TextInfo &b;
   Graph bestMatching;
   unsigned int bestCost;
-  OnEachBlocksSequence(TextInfo &a,TextInfo &b):a(a),b(b),bestMatching(a.important_text.length(),b.important_text.length()),bestCost(1e9){
+  unsigned long long testedSequences;
+  OnEachBlocksSequence(TextInfo &a,TextInfo &b):a(a),b(b),bestMatching(a.important_text.length(),b.important_text.length()),bestCost(1e9),testedSequences(0){
   }
   void onBlocksSequence(const vector<vector<pair<int,int> > > &blocks){
+    testedSequences++;
     Graph matching(a.important_text.length(),b.important_text.length());
     for(unsigned int i=0;i<blocks.size();++i){
       for(unsigned int j=0;j<blocks[i].size();++j){
@@ -680,20 +686,47 @@ struct OnEachBlocksSequence{
     }
   }
 };
-void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
-  //TODO: interleave generation of DAG with verifiying/ensuring that it is a DAG, which should change complexity from O(2^k) to O(something * possible dags)
-  for(unsigned long long x=1ULL<<conflictingBlocks.size();x--;){
-    vector<vector<int> > dag(dominantBlocks.size());
+
+bool include(vector<int> &v,int x){
+  if(find(v.begin(),v.end(),x)==v.end()){
+    v.push_back(x);
+    return true;
+  }else{
+    return false;
+  }
+}
+bool exclude(vector<int> &v,int x){
+  if(find(v.begin(),v.end(),x)==v.end()){
+    return false;
+  }else{
+    v.erase(find(v.begin(),v.end(),x));
+    return true;
+  }
+}
+void eliminate(vector<vector<int> > & dag,int i){
+  for(unsigned int j=dag.size();j--;){
+    if(find(dag[j].begin(),dag[j].end(),i)!=dag[j].end()){
+      assert(j!=i);
+      for(unsigned int k=dag[i].size();k--;){
+        include(dag[j],dag[i][k]);
+      }
+      exclude(dag[j],i);
+    }
+  }
+  dag[i].clear();
+}
+void bla(const int maxPos,unsigned int leftPos,int winner,vector<int> activeIds, const vector<vector<pair<int,int> > > & dominantBlocks,vector<vector<int> > activeDag,vector<vector<int> > dag,OnEachBlocksSequence & visitor){
+ // cerr << "bla " << maxPos << " leftPos " << leftPos << " winner " << winner << " activeIds " << activeIds.size() << endl;
+  if (maxPos < leftPos) {
+    //cerr << "bottom" << endl;
+
     vector<int> depsCnt(dominantBlocks.size(),0);
-    for(unsigned int i=conflictingBlocks.size();i--;){
-      if(x>>i&1){
-        dag[conflictingBlocks[i].first].push_back(conflictingBlocks[i].second);
-        depsCnt[conflictingBlocks[i].second]++;
-      }else{
-        dag[conflictingBlocks[i].second].push_back(conflictingBlocks[i].first);
-        depsCnt[conflictingBlocks[i].first]++;
+    for(unsigned int i=dag.size();i--;){
+      for(unsigned int j=dag[i].size();j--;){
+        depsCnt[dag[i][j]]++;
       }
     }
+
     vector<unsigned int> q;
     for(unsigned int i=depsCnt.size();i--;){
       if(!depsCnt[i]){
@@ -713,25 +746,104 @@ void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlock
       }
     }
     if(permutation.size()!=dominantBlocks.size()){
-      //cerr << "Skipping a graph with cycle" << endl;
-      continue;
+      for(unsigned int i=dag.size();i--;){
+        for(unsigned int j=dag[i].size();j--;){
+          cerr << "EDGE " << i << " -> " << dag[i][j] << endl;
+        }
+      }
+      for(unsigned int i=depsCnt.size();i--;){
+        if(depsCnt[i]){
+          cerr << "UNREACHABLE " << i << endl;
+        }
+      }
     }
+    assert(permutation.size()==dominantBlocks.size());
     vector<vector<pair<int,int> > > blocks;
     //cerr << "Consider permutation of blocks [";
-    for(unsigned i=0;i<permutation.size();++i){
+    for(unsigned i=permutation.size();i--;){
      // cerr << permutation[i] << ",";
       blocks.push_back(dominantBlocks[permutation[i]]);
     }
     //cerr << "]" << endl;
     visitor.onBlocksSequence(blocks);
+  } else {
+    //1. pewne bloki się kończą na literze leftPos-1
+    //   zostawiamy je w DAGu żeby zachować wiedzę o przechodniości/porządku (?)
+    //   oznaczamy je jako inactive
+    for(unsigned int i=dominantBlocks.size();i--;){
+      if(dominantBlocks[i].back().first+1 == leftPos){
+        exclude(activeIds,i);
+        eliminate(activeDag,i);
+      }
+    }
+    //3. mamy pewien zbiór bloków które są aktywne i nic aktywnego ich nie zasłania (czyli chyba potrzebujemy wyindukować sobie DAG aktywnych bloków)
+    //   w zasadzie każdy z nich może wygrać
 
+    vector<unsigned int> possibleWinners;
+    FOREACH(i,activeIds){
+      if(activeDag[*i].empty()){
+        possibleWinners.push_back(*i);
+      }
+    }
+
+    //2. pewne bloki się zaczynają na literze leftPos
+    //   dodajemy je do DAGu jako izolowane i aktywne(?)
+    for(unsigned int i=dominantBlocks.size();i--;){
+      if(dominantBlocks[i].front().first == leftPos){
+        activeIds.push_back(i);
+        possibleWinners.push_back(i);
+      }
+    }
+
+    //cerr << "Possible Winners:" << possibleWinners.size() << endl;
+    //   każdego możliwego zwycięzce rozpatrujemy rekurencyjnie poprzez dodanie krawędzi potwierdzających jego zwycięztwo nad pozostałymi
+    FOREACH(i,possibleWinners){
+      //4. wydaje mi się, że powinniśmy też jakby śledzić kto jest zwycięzcą głównie po to, by zabronić mu powrotu do władzy, gdy już raz przegra 
+      //cerr << "coping" << endl;
+      vector<int>  new_activeIds=activeIds;
+      vector<vector<int> > new_activeDag=activeDag;
+      vector<vector<int> > new_dag=dag;
+      //cerr << "adding deps" << endl;
+      FOREACH(j,possibleWinners)if(*i!=*j){
+        //cerr << "NEW EDGE FROM " << *j << " TO " << *i << endl;
+        include(new_dag[*j],*i);
+        include(new_activeDag[*j],*i);
+      }
+      if(*i!=winner && winner!=-1){
+        //cerr << "removing winner" << endl;
+        exclude(new_activeIds,winner);
+        //cerr << "eliminating" << endl;
+        eliminate(new_activeDag,winner);
+      }
+      //cerr << "recursing" << endl;
+
+      bla(maxPos,leftPos+1,*i,new_activeIds,dominantBlocks,new_activeDag,new_dag,visitor);
+    }
+    if(possibleWinners.empty()){
+      //cerr << "empty case" << endl;
+      bla(maxPos,leftPos+1,-1,activeIds,dominantBlocks,activeDag,dag,visitor);
+    }
+    
   }
+
+
+
+}
+void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
+  //TODO: interleave generation of DAG with verifiying/ensuring that it is a DAG, which should change complexity from O(2^k) to O(something * possible dags)
+
+  int maxPos = -1;
+  FOREACH(block,dominantBlocks){
+    maxPos = max(maxPos,block->back().first);
+  }
+  bla(maxPos,0,-1,vector<int>(),dominantBlocks,vector<vector<int> > (dominantBlocks.size(),vector<int> ()),vector<vector<int> > (dominantBlocks.size(),vector<int> ()),visitor);
 }
 Graph getBestMatching(TextInfo a,TextInfo b){
   vector<vector<pair<int,int> > > dominantBlocks=getDominantBlocks(a,b);
   vector<pair<int,int> > conflictingBlocks = getConflictingBlocks(dominantBlocks);
   OnEachBlocksSequence visitor(a,b);
   foreachBlocksSequence(dominantBlocks,conflictingBlocks,visitor);
+  cerr << "Tested " << visitor.testedSequences << " sequences!" << endl;
   return visitor.bestMatching;
 }
 void getCheapest(string aText,string bText,DFA &dfa){
