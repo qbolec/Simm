@@ -592,7 +592,7 @@ vector<vector<pair<int,int> > > getDominantBlocks(TextInfo a,TextInfo b){
     }
   }
   vector<vector<pair<int,int> > > shortBlocks;
-  for(unsigned int i=0;i<dominantBlocks.size();++i)if(dominantBlocks[i].size()>1){
+  for(unsigned int i=0;i<dominantBlocks.size();++i){
     map<int,int> diffToBlockId;
     for(unsigned int j=0;j<dominantBlocks[i].size();++j){
       int diff = dominantBlocks[i][j].first-dominantBlocks[i][j].second;
@@ -604,7 +604,85 @@ vector<vector<pair<int,int> > > getDominantBlocks(TextInfo a,TextInfo b){
       shortBlocks[diffToBlockId[diff]].push_back(dominantBlocks[i][j]);
     }
   }
-  cerr << "There are " << shortBlocks.size() << " short blocks" << endl;
+  
+  cerr << "There are " << shortBlocks.size() << " potential short blocks" << endl;
+  for(unsigned int i=0;i<shortBlocks.size();++i){
+    cerr << "Short block #" << i << " is:" << endl;
+    for(unsigned int j=0;j<shortBlocks[i].size();++j){
+      if(a.important_text.length() <= shortBlocks[i][j].first || b.important_text.length() <= shortBlocks[i][j].second){
+        cerr << "WTF is this: " << shortBlocks[i][j].first << " ---> " << shortBlocks[i][j].second << endl;
+      }
+      cerr << " " << shortBlocks[i][j].first << ": " << a.important_text[shortBlocks[i][j].first] << "  -- " << shortBlocks[i][j].second << ": " << b.important_text[shortBlocks[i][j].second] << endl;
+    }
+  }
+  
+  for(bool changed=true;changed;){
+    changed=false;
+    vector<int> aCoverage(a.important_text.length(),0);
+    vector<int> bCoverage(b.important_text.length(),0);
+    for(unsigned int i=0;i<shortBlocks.size();++i){
+      for(unsigned int j=0;j<shortBlocks[i].size();++j){
+        aCoverage[shortBlocks[i][j].first]++;
+        bCoverage[shortBlocks[i][j].second]++;
+      }
+    }
+    for(unsigned int i=0;i<shortBlocks.size();++i){
+      int first_j = -1;
+      int last_j = -1;
+      for(unsigned int j=0;j<shortBlocks[i].size();++j){
+        assert(aCoverage[shortBlocks[i][j].first]>=1 && bCoverage[shortBlocks[i][j].second]>=1);
+
+        if(aCoverage[shortBlocks[i][j].first]==1 && bCoverage[shortBlocks[i][j].second]==1){
+          if(first_j==-1){
+            first_j=j;
+          }
+          last_j = j;
+        }
+      }
+      cerr << "short block #" << i << " first_j" << first_j << " last_j " << last_j << endl;
+      if(first_j < last_j){
+        bool gotSomething=false;
+        for(unsigned int j=first_j;j<=last_j;++j){
+          if(aCoverage[shortBlocks[i][j].first]>1 || bCoverage[shortBlocks[i][j].second]>1){
+            gotSomething = true;
+          }
+        }
+        if(gotSomething){
+          cerr << "got something" << endl;
+          changed = true;
+          vector<vector<pair<int,int> > > aliveBlocks;
+          for(unsigned int k=0;k<shortBlocks.size();++k){
+            if(k!=i && (
+                    shortBlocks[i][first_j].first <= shortBlocks[k].back().first && shortBlocks[k].back().first <= shortBlocks[i][last_j].first ||
+                    shortBlocks[i][first_j].second <= shortBlocks[k].back().second && shortBlocks[k].back().second <= shortBlocks[i][last_j].second
+                  )){
+              assert((
+                  shortBlocks[i][first_j].first < shortBlocks[k].back().first && 
+                  shortBlocks[k].back().first < shortBlocks[i][last_j].first &&
+                  shortBlocks[i][first_j].first < shortBlocks[k].front().first && 
+                  shortBlocks[k].front().first < shortBlocks[i][last_j].first
+              ) || (
+                  shortBlocks[i][first_j].second < shortBlocks[k].back().second && 
+                  shortBlocks[k].back().second < shortBlocks[i][last_j].second &&
+                  shortBlocks[i][first_j].second < shortBlocks[k].front().second && 
+                  shortBlocks[k].front().second < shortBlocks[i][last_j].second
+              ));
+              cerr << "short block #" << i << " dominated short block #" << k << endl;
+            }else{
+              aliveBlocks.push_back(shortBlocks[k]);
+            }
+          }
+          assert(aliveBlocks.size() < shortBlocks.size());
+          swap(aliveBlocks,shortBlocks);
+          break;
+        }
+      }
+
+    }
+
+  }
+
+  cerr << "There are " << shortBlocks.size() << " final short blocks" << endl;
   for(unsigned int i=0;i<shortBlocks.size();++i){
     cerr << "Short block #" << i << " is:" << endl;
     for(unsigned int j=0;j<shortBlocks[i].size();++j){
