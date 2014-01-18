@@ -1,3 +1,4 @@
+#include<cmath>
 const int VARIANTS = 2;
 vector<DFA::CHARACTER_CLASS> tagLetters(string text,DFA &dfa){
   vector<DFA::CHARACTER_CLASS> tags;
@@ -1037,26 +1038,94 @@ int block_by_edge(const vector<vector<pair<int,int> > > & dominantBlocks,int l,i
   }
   assert(false);
 }
-void rumba(
+unsigned long long pow(unsigned long long x,int k){
+   if(k==0)return 1;
+   unsigned long long h=pow(x,k/2);
+   if(k&1){
+     return h*h*x;
+   }
+   return h*h;
+}
+vector<int> levels_visits;
+bool rumba(
+    vector<int> chosenMatchings,
     unsigned long long int &progress,
-    const vector<unsigned long long int> &prices,
     int levelId,
     vector<vector<int> > dag,
     const vector<vector<pair<int,int> > > & dominantBlocks,
     const vector< vector<pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > > > levels,
     OnEachBlocksSequence & visitor){
+  if(levels_visits.size()<=levelId){
+    levels_visits.resize(levelId+1,0);
+  }
+  /*
+  FOREACH(vis,levels_visits){
+    cerr << *vis << '\t';
+  }
+  cerr << "\r";
+  */
+  if(levels.size() <= levelId  && levelId<2*levels.size()){
+    const pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > * matching = &levels[levelId-levels.size()][chosenMatchings[levelId-levels.size()]];
+    unsigned long long int variants = pow(VARIANTS,matching->second.size());
+    for(unsigned long long int e=0;e<variants;++e){
+      vector<vector<int> > variantDag=dag;
+      unsigned long long int f=e;
+      bool variantFeasible = true;
+      FOREACH(choice,matching->second){
+        int which = f%VARIANTS;
+        f/=VARIANTS;
+        int v[4]={
+          choice->first.first,
+          choice->first.second,
+          choice->second.first,
+          choice->second.second
+        };
 
-  FOREACH(node,dag){
-    sort(node->begin(),node->end());
-  }
-  static set<pair<int,vector<vector<int> > > > seen_dags;
-  if(!seen_dags.insert(make_pair(levelId,dag)).second){
-    cerr << "Already seen this dag, skipping " << prices[levelId] << endl;
-    progress += prices[levelId];
-    return;
-  }
-  if(levelId < levels.size()){
-    FOREACH(matching,levels[levelId]){
+        if(VARIANTS == 3){
+          //which is 00,01,10
+          if((which&1)){
+            swap(v[0],v[1]);
+          }
+          if((which&2)){
+            swap(v[2],v[3]);
+          }
+          for(int p=0;p<4;p+=2){
+            if(dagDfs(variantDag,v[p+1],v[p])){
+              variantFeasible=false;
+              break;
+            }else if(!dagDfs(variantDag,v[p],v[p+1])){
+              variantDag[v[p]].push_back(v[p+1]);
+            }
+          }
+        }else{
+          //which is 0 or 1
+          const int p = which*2;
+          if(dagDfs(variantDag,v[p+1],v[p])){
+            variantFeasible=false;
+          }else if(!dagDfs(variantDag,v[p],v[p+1])){
+            variantDag[v[p]].push_back(v[p+1]);
+          }
+        }
+        if(!variantFeasible){
+          break;
+        }
+      }
+      if(variantFeasible){
+        if(rumba(chosenMatchings,progress,levelId+1,variantDag,dominantBlocks,levels,visitor)){
+//          cerr << "Level " << levelId << " e " << e << " variants " << variants << endl;
+          levels_visits[levelId]+=variants-1-e;
+          return true;
+        }
+      }else{
+        levels_visits[levelId]++;
+//          cerr << "Infeasible variant so we skip recursion of " << prices[levelId+1] << endl;
+//          progress += prices[levelId+1];
+      }
+    }
+    return false;
+  }else if(levelId < levels.size()){
+    for(unsigned int mid=0;mid<levels[levelId].size();++mid){
+      const pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > >* matching = &levels[levelId][mid];
       bool mustsFeasible = true;
       vector<vector<int> > mustsDag=dag;
       FOREACH(m,matching->first){
@@ -1068,68 +1137,17 @@ void rumba(
         }
       }
       
-      unsigned long long int variants = 1;
-      FOREACH(choice,matching->second){
-        variants*=VARIANTS;
-      }
-      if(!mustsFeasible){
-        //cerr << "Skiping whole matching because musts are infeasible +=" << prices[levelId+1]*variants << endl;
-        progress += prices[levelId+1]*variants;
-        continue;
-      }
-      for(unsigned long long int e=0;e<variants;++e){
-        vector<vector<int> > variantDag=mustsDag;
-        unsigned long long int f=e;
-        bool variantFeasible = true;
-        FOREACH(choice,matching->second){
-          int which = f%VARIANTS;
-          f/=VARIANTS;
-          int v[4]={
-            choice->first.first,
-            choice->first.second,
-            choice->second.first,
-            choice->second.second
-          };
-
-          if(VARIANTS == 3){
-            //which is 00,01,10
-            if((which&1)){
-              swap(v[0],v[1]);
-            }
-            if((which&2)){
-              swap(v[2],v[3]);
-            }
-            for(int p=0;p<4;p+=2){
-              if(dagDfs(variantDag,v[p+1],v[p])){
-                variantFeasible=false;
-                break;
-              }else if(!dagDfs(variantDag,v[p],v[p+1])){
-                variantDag[v[p]].push_back(v[p+1]);
-              }
-            }
-          }else{
-            //which is 0 or 1
-            const int p = which*2;
-            if(dagDfs(variantDag,v[p+1],v[p])){
-              variantFeasible=false;
-            }else if(!dagDfs(variantDag,v[p],v[p+1])){
-              variantDag[v[p]].push_back(v[p+1]);
-            }
-          }
-          if(!variantFeasible){
-            break;
-          }
-        }
-        if(variantFeasible){
-          rumba(progress,prices,levelId+1,variantDag,dominantBlocks,levels,visitor);
-        }else{
-//          cerr << "Infeasible variant so we skip recursion of " << prices[levelId+1] << endl;
-          progress += prices[levelId+1];
-        }
+      if(mustsFeasible){
+        vector<int> newChosenMatchings = chosenMatchings;
+        newChosenMatchings.push_back(mid);
+        rumba(newChosenMatchings,progress,levelId+1,mustsDag,dominantBlocks,levels,visitor);
+      }else{
+        levels_visits[levelId]++;
       }
     }
+    return false;//who cares...
   }else{
-    progress += prices[levelId];
+    progress += 1;
 //    cerr << "Leaf is worth " << prices[levelId] << endl;
     vector<int> depsCnt(dominantBlocks.size(),0);
     for(unsigned int i=dag.size();i--;){
@@ -1169,12 +1187,15 @@ void rumba(
       }
     }
     assert(permutation.size()==dominantBlocks.size());
+    /* not required in this algorithm
     static set<vector<int> > seen_permutations;
     if(!seen_permutations.insert(permutation).second){
-      //cerr << "Already saw this permutation" << endl;
-      return;
+      cerr << "Already saw this permutation" << endl;
+      return true;
     }
+    */
     vector<vector<pair<int,int> > > blocks;
+    reverse(permutation.begin(),permutation.end());
 //    cerr << "Consider permutation of blocks [";
     for(unsigned i=permutation.size();i--;){
 //      cerr << permutation[i] << ",";
@@ -1186,8 +1207,9 @@ void rumba(
     }
 //    cerr << "]" << endl;
     visitor.onBlocksSequence(blocks);
+    levels_visits[levelId]++;
+    return true;
   }
-  cerr << progress << "\r";
 }
 void foreachDAG(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
   //1. zrób z dominantBlocks zwykły graf
@@ -1336,9 +1358,7 @@ void foreachDAG(const vector<vector<pair<int,int> > > & dominantBlocks,const vec
       }
     }
   }
-  vector<unsigned long long int> prices;
   unsigned long long int combinations=1;
-  prices.push_back(combinations);
   FOREACH(dagletts,daglettsOptions){
     unsigned long long int dags = 0;
     FOREACH(daglett,*dagletts){
@@ -1349,18 +1369,13 @@ void foreachDAG(const vector<vector<pair<int,int> > > & dominantBlocks,const vec
       dags+=variants;
     }
     combinations*=dags;
-    prices.push_back(combinations);
   }
-  reverse(prices.begin(),prices.end());
   cerr << "TOooOOootal " << combinations << " combinations" << endl;
-  FOREACH(price,prices){
-    cerr << "price: " << *price << endl;
-  }
 
   vector< vector<pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > > > levels(daglettsOptions.rbegin(),daglettsOptions.rend());
 
   unsigned long long int progress=0;
-  rumba(progress,prices,0,vector<vector<int> > (dominantBlocks.size()),dominantBlocks,levels,visitor);
+  rumba(vector<int> (0),progress,0,vector<vector<int> > (dominantBlocks.size()),dominantBlocks,levels,visitor);
   cerr << "Finished with progress = " << progress << endl;
 }
 
