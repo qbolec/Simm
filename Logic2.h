@@ -1,3 +1,4 @@
+const int VARIANTS = 2;
 vector<DFA::CHARACTER_CLASS> tagLetters(string text,DFA &dfa){
   vector<DFA::CHARACTER_CLASS> tags;
   dfa.reset();
@@ -615,7 +616,14 @@ vector<vector<pair<int,int> > > getDominantBlocks(TextInfo a,TextInfo b){
       cerr << " " << shortBlocks[i][j].first << ": " << a.important_text[shortBlocks[i][j].first] << "  -- " << shortBlocks[i][j].second << ": " << b.important_text[shortBlocks[i][j].second] << endl;
     }
   }
-  
+ 
+  //If both endpoints of an edge have degree=1, then this edge must be in the matching.
+  //If in a block two edges must be in the matching (due to above rule), then we want (for it is "natural") all edges "in between" these two edges to also be in the matching.
+  //Forcing these "inner" edges to be in the matching, perhaps means that some other edges (from other blocks) can not be in the matching.
+  //If you think about it for a while (a picture might help) if there is at least one edge in a block that can not be in the maching (due to above rule) then the whole block can not be in the matching.
+  //So, in short: one block can dominate another block, if the other block lays "inside" (either in text A or in text B) the first block, between two edges which must be in the matching.
+  //We can remove such dominated block, with all it edges, which in turn may lead to new nodes of degree=1, and recursively cause some new dominations to occur.
+  //This is a fixed point loop, which removes dominated blocks as long as there are any.
   for(bool changed=true;changed;){
     changed=false;
     vector<int> aCoverage(a.important_text.length(),0);
@@ -681,7 +689,18 @@ vector<vector<pair<int,int> > > getDominantBlocks(TextInfo a,TextInfo b){
     }
 
   }
-
+  /*
+  //For performance reasons let us remove all single-char blocks
+  {
+    unsigned int j=0;
+    for(unsigned int i=0;i<shortBlocks.size();++i){
+      if(shortBlocks[i].size()>1){
+        shortBlocks[j++]=shortBlocks[i];
+      }
+    }
+    shortBlocks.resize(j);
+  }
+  */
   cerr << "There are " << shortBlocks.size() << " final short blocks" << endl;
   for(unsigned int i=0;i<shortBlocks.size();++i){
     cerr << "Short block #" << i << " is:" << endl;
@@ -738,6 +757,7 @@ struct OnEachBlocksSequence{
       for(unsigned int j=0;j<blocks[i].size();++j){
         unsigned int left=matching.left(blocks[i][j].first);
         unsigned int right=matching.right(blocks[i][j].second);
+        //assert(0==matching.getOutDegree(left) && 0==matching.getOutDegree(right));//for new algorithm
         if(0==matching.getOutDegree(left) && 0==matching.getOutDegree(right)){
           matching.addEdges(left,right);
         }
@@ -793,11 +813,124 @@ void eliminate(vector<vector<int> > & dag,int i){
   }
   dag[i].clear();
 }
-void bla(const int maxPos,unsigned int leftPos,int winner,vector<int> activeIds, const vector<vector<pair<int,int> > > & dominantBlocks,vector<vector<int> > activeDag,vector<vector<int> > dag,OnEachBlocksSequence & visitor){
- // cerr << "bla " << maxPos << " leftPos " << leftPos << " winner " << winner << " activeIds " << activeIds.size() << endl;
-  if (maxPos < leftPos) {
-    //cerr << "bottom" << endl;
-
+bool dagDfs(const vector<vector<int> > & dag,int src,int dest,set<int> &visited){
+  if(src==dest){
+    return true;
+  }
+  if(!visited.insert(src).second){
+    return false;
+  }
+  for(unsigned int j=dag[src].size();j--;){
+    if(dagDfs(dag,dag[src][j],dest,visited)){
+      return true;
+    }
+  }
+  return false;
+}
+bool dagDfs(const vector<vector<int> > & dag,int src,int dest){
+  set<int> visited;
+  return dagDfs(dag,src,dest,visited);
+}
+void allConflicts(int conflictId,vector<vector<int> > dag,vector<vector<pair<int,int> > > dominantBlocks, vector<pair<int,int> > conflictingBlocks,OnEachBlocksSequence & visitor,unsigned long long int progress=0){
+  if(conflictId == min(20U,conflictingBlocks.size())){
+    cerr << "Progress " << progress << " out of " << (1ULL << conflictId) << "\r";
+  }
+  {
+    for(unsigned int i=conflictId+1;i<conflictingBlocks.size();++i){
+       unsigned int best=dag[conflictingBlocks[conflictId].first].size() + dag[conflictingBlocks[conflictId].second].size();
+       unsigned int current=dag[conflictingBlocks[i].first].size() + dag[conflictingBlocks[i].second].size();
+       if(current>best){
+         swap(conflictingBlocks[i],conflictingBlocks[conflictId]);
+//         cerr << "swap conflict " << i << " with conflict " << conflictId << endl;
+       }
+    }
+  }
+  for(bool change=true;change;){
+    change=false;
+    for(unsigned int i=0;i<dominantBlocks.size();++i){
+      for(unsigned int j=0;j<dominantBlocks[i].size();++j){
+        int a=dominantBlocks[i][j].first;
+        int b=dominantBlocks[i][j].second;
+        vector<int> worse;
+        bool might_be_bad=false;
+        bool a_conflicts = false;
+        bool b_conflicts = false;
+        for(unsigned int k=0;k<dominantBlocks.size();++k)if(k!=i && !dominantBlocks[k].empty()){
+          if(dominantBlocks[k].front().first <= a && a <= dominantBlocks[k].back().first || 
+              dominantBlocks[k].front().second <= b && b <=dominantBlocks[k].back().second){
+            for(unsigned int p=0;p<dominantBlocks[k].size();++p){
+              if(dominantBlocks[k][p].first == a){
+                a_conflicts = true;
+              }
+              if(dominantBlocks[k][p].second == b){
+                b_conflicts = true;
+              }
+              if(dominantBlocks[k][p].first == a || dominantBlocks[k][p].second == b){
+                if(dagDfs(dag,i,k)){
+                  assert(worse.empty() || worse.back()!=k);
+                  worse.push_back(k);
+                }else{
+                  might_be_bad = true;
+                }
+              }
+            }
+          }
+        }
+        bool kill_conflicts = false;
+        if(!worse.empty() && (!a_conflicts || !b_conflicts)){
+          //IDEA: if one of ends of the edge a-->b is not conflicting with any other edge,
+          //then a-->b will be in the matching, unless something covers the other end.
+          //But if something covers the other end, then it has to be better than a-->b,
+          //and (by transitivity) better than everything which is worse than a-->b,
+          //and so everything that is worse than a-->b and conflicts with the other end
+          //will not be in the matching.
+          kill_conflicts = true;
+        //  cerr << "Kill in the name of single end" << endl;
+        }else if(!might_be_bad && !worse.empty()){
+          //IDEA: when all conflicting blocks are worse, then edge a-->b can not be covered
+          //by any of these worse blocks, so edge a-->b will be in the matching, and thus
+          //all conflicting edges can be removed
+          kill_conflicts = true;
+        //  cerr << "Kill in the name of domination" << endl;
+        }
+        if(kill_conflicts){
+          change = true;
+          FOREACH(kp,worse){
+            const unsigned int k=*kp;
+            unsigned int r=0;
+            for(unsigned int p=0;p<dominantBlocks[k].size();++p){
+              if(dominantBlocks[k][p].first == a || dominantBlocks[k][p].second == b){
+//                cerr << "Eliminating edge " << dominantBlocks[k][p].first << " --> " << dominantBlocks[k][p].second << " from block #" << k << " because block #" << i << " dominated" << endl;
+              }else{
+                dominantBlocks[k][r++] = dominantBlocks[k][p];
+              }
+            }
+            dominantBlocks[k].resize(r);
+            //IDEA: when a block is eliminated (has no edges) then it should not dominate anything (should have no outgoing edges in the dag).
+            //We try to make sure that it holds "deeper" in the recursion, by marking such conflicts as irrelevant and do not add them to the dag (nor their reflections).
+            //However "shalower" in the recursion we might have already added some edges.
+            //We want to kill the whole recursion and back track in such situations.
+            //However this might lead to a severe bug: if there are two conflicting blocks, both of them become empty deeper in the recursion, then one of them will always have an edge in the dag.
+            //So, to allow that, we must break ties somehow for empty blocks, and allow edges in the dag which follow the rule of tiebreaking.
+            //Here we use the block id as a tiebreaker.
+            //We allow an empty block X to dominate block Y only if #Y<#X.
+            if(dominantBlocks[k].empty()){
+//              cerr << "Eliminated block #" << k << endl;
+              FOREACH(z,dag[k]){
+                if(k<*z){
+//                  cerr << "Which is inconsistent with it dominating block " << *z << " which has higher number" << endl;
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+//  cerr << "domination ends" << endl;
+  if(conflictId == conflictingBlocks.size()){
+  
     vector<int> depsCnt(dominantBlocks.size(),0);
     for(unsigned int i=dag.size();i--;){
       for(unsigned int j=dag[i].size();j--;){
@@ -837,76 +970,400 @@ void bla(const int maxPos,unsigned int leftPos,int winner,vector<int> activeIds,
     }
     assert(permutation.size()==dominantBlocks.size());
     vector<vector<pair<int,int> > > blocks;
-    //cerr << "Consider permutation of blocks [";
+//    cerr << "Consider permutation of blocks [";
     for(unsigned i=permutation.size();i--;){
-     // cerr << permutation[i] << ",";
-      blocks.push_back(dominantBlocks[permutation[i]]);
+//      cerr << permutation[i] << ",";
+      if(dominantBlocks[permutation[i]].empty()){
+//        cerr << "skiping now empty block #" << permutation[i] << endl;
+      }else{
+        blocks.push_back(dominantBlocks[permutation[i]]);
+      }
     }
-    //cerr << "]" << endl;
+//    cerr << "]" << endl;
     visitor.onBlocksSequence(blocks);
-  } else {
-    //1. pewne bloki się kończą na literze leftPos-1
-    //   zostawiamy je w DAGu żeby zachować wiedzę o przechodniości/porządku (?)
-    //   oznaczamy je jako inactive
-    for(unsigned int i=dominantBlocks.size();i--;){
-      if(dominantBlocks[i].back().first+1 == leftPos){
-        exclude(activeIds,i);
-        eliminate(activeDag,i);
+//    cerr << "updated" << endl;
+  }else{
+    int a=conflictingBlocks[conflictId].first;
+    int b=conflictingBlocks[conflictId].second;
+    bool irrelevant = dominantBlocks[a].empty() || dominantBlocks[b].empty() ||  dagDfs(dag,a,b) ||dagDfs(dag,b,a);
+    /*
+    //THIS WHOLE optimization does not seem to work actually (either it has a bug, or tests do not contain such situations, or perhaps this is impossible anyway)
+    if(!irrelevant){
+      bool reallyCollides = false;
+      FOREACH(x,dominantBlocks[a]){
+        FOREACH(y,dominantBlocks[b]){
+          if(x->first == y->first || x->second==y->second){
+            reallyCollides = true;
+//            cerr << "Yes, there still is a collision between " <<  x->first << " --> " << x->second << " and " << y->first << " --> " << y->second << endl;
+          }
+        }
+      }
+      if(!reallyCollides){
+        cerr << "Ha! blocks #" << a << " and #" << b << " do not really collide any more." << endl;
+        irrelevant = true;
       }
     }
-    //3. mamy pewien zbiór bloków które są aktywne i nic aktywnego ich nie zasłania (czyli chyba potrzebujemy wyindukować sobie DAG aktywnych bloków)
-    //   w zasadzie każdy z nich może wygrać
+    */
+    if(irrelevant){
+//      cerr << "Free drink at " << a << " vs " << b << endl;
+      allConflicts(conflictId+1,dag,dominantBlocks,conflictingBlocks,visitor, progress*2+1);
+    }else{
+//      cerr << "Split at " << a << " vs " << b << endl;
+      dag[a].push_back(b);
+      allConflicts(conflictId+1,dag,dominantBlocks,conflictingBlocks,visitor, progress*2);
+      assert(dag[a].back()==b);
+      dag[a].pop_back();
+      dag[b].push_back(a);
+//      cerr << "Other option of " << a << " vs " << b << endl;
+      allConflicts(conflictId+1,dag,dominantBlocks,conflictingBlocks,visitor, progress*2+1);
+    }
+//    cerr << "level up" << endl;
+  }
+}
+void dfs(const vector<vector<int> > & g,vector<int> &component,int color,int node){
+  if(component[node]==color){
+    return;
+  }
+  component[node]=color;
+  FOREACH(nbr,g[node]){
+    dfs(g,component,color,*nbr);
+  }
+}
+int block_by_edge(const vector<vector<pair<int,int> > > & dominantBlocks,int l,int r){
+  for(int i=0;i<dominantBlocks.size();++i){
+    if(find(dominantBlocks[i].begin(),dominantBlocks[i].end(),make_pair(l,r))!=dominantBlocks[i].end()){
+      return i;
+    }
+  }
+  assert(false);
+}
+void rumba(
+    unsigned long long int &progress,
+    const vector<unsigned long long int> &prices,
+    int levelId,
+    vector<vector<int> > dag,
+    const vector<vector<pair<int,int> > > & dominantBlocks,
+    const vector< vector<pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > > > levels,
+    OnEachBlocksSequence & visitor){
 
-    vector<unsigned int> possibleWinners;
-    FOREACH(i,activeIds){
-      if(activeDag[*i].empty()){
-        possibleWinners.push_back(*i);
+  FOREACH(node,dag){
+    sort(node->begin(),node->end());
+  }
+  static set<pair<int,vector<vector<int> > > > seen_dags;
+  if(!seen_dags.insert(make_pair(levelId,dag)).second){
+    cerr << "Already seen this dag, skipping " << prices[levelId] << endl;
+    progress += prices[levelId];
+    return;
+  }
+  if(levelId < levels.size()){
+    FOREACH(matching,levels[levelId]){
+      bool mustsFeasible = true;
+      vector<vector<int> > mustsDag=dag;
+      FOREACH(m,matching->first){
+        if(dagDfs(mustsDag,m->second,m->first)){
+          mustsFeasible=false;
+          break;
+        }else if(!dagDfs(mustsDag,m->first,m->second)){
+          mustsDag[m->first].push_back(m->second);
+        }
+      }
+      
+      unsigned long long int variants = 1;
+      FOREACH(choice,matching->second){
+        variants*=VARIANTS;
+      }
+      if(!mustsFeasible){
+        //cerr << "Skiping whole matching because musts are infeasible +=" << prices[levelId+1]*variants << endl;
+        progress += prices[levelId+1]*variants;
+        continue;
+      }
+      for(unsigned long long int e=0;e<variants;++e){
+        vector<vector<int> > variantDag=mustsDag;
+        unsigned long long int f=e;
+        bool variantFeasible = true;
+        FOREACH(choice,matching->second){
+          int which = f%VARIANTS;
+          f/=VARIANTS;
+          int v[4]={
+            choice->first.first,
+            choice->first.second,
+            choice->second.first,
+            choice->second.second
+          };
+
+          if(VARIANTS == 3){
+            //which is 00,01,10
+            if((which&1)){
+              swap(v[0],v[1]);
+            }
+            if((which&2)){
+              swap(v[2],v[3]);
+            }
+            for(int p=0;p<4;p+=2){
+              if(dagDfs(variantDag,v[p+1],v[p])){
+                variantFeasible=false;
+                break;
+              }else if(!dagDfs(variantDag,v[p],v[p+1])){
+                variantDag[v[p]].push_back(v[p+1]);
+              }
+            }
+          }else{
+            //which is 0 or 1
+            const int p = which*2;
+            if(dagDfs(variantDag,v[p+1],v[p])){
+              variantFeasible=false;
+            }else if(!dagDfs(variantDag,v[p],v[p+1])){
+              variantDag[v[p]].push_back(v[p+1]);
+            }
+          }
+          if(!variantFeasible){
+            break;
+          }
+        }
+        if(variantFeasible){
+          rumba(progress,prices,levelId+1,variantDag,dominantBlocks,levels,visitor);
+        }else{
+//          cerr << "Infeasible variant so we skip recursion of " << prices[levelId+1] << endl;
+          progress += prices[levelId+1];
+        }
+      }
+    }
+  }else{
+    progress += prices[levelId];
+//    cerr << "Leaf is worth " << prices[levelId] << endl;
+    vector<int> depsCnt(dominantBlocks.size(),0);
+    for(unsigned int i=dag.size();i--;){
+      for(unsigned int j=dag[i].size();j--;){
+        depsCnt[dag[i][j]]++;
       }
     }
 
-    //2. pewne bloki się zaczynają na literze leftPos
-    //   dodajemy je do DAGu jako izolowane i aktywne(?)
-    for(unsigned int i=dominantBlocks.size();i--;){
-      if(dominantBlocks[i].front().first == leftPos){
-        activeIds.push_back(i);
-        possibleWinners.push_back(i);
+    vector<unsigned int> q;
+    for(unsigned int i=depsCnt.size();i--;){
+      if(!depsCnt[i]){
+        q.push_back(i);
       }
     }
 
-    //cerr << "Possible Winners:" << possibleWinners.size() << endl;
-    //   każdego możliwego zwycięzce rozpatrujemy rekurencyjnie poprzez dodanie krawędzi potwierdzających jego zwycięztwo nad pozostałymi
-    FOREACH(i,possibleWinners){
-      //4. wydaje mi się, że powinniśmy też jakby śledzić kto jest zwycięzcą głównie po to, by zabronić mu powrotu do władzy, gdy już raz przegra 
-      //cerr << "coping" << endl;
-      vector<int>  new_activeIds=activeIds;
-      vector<vector<int> > new_activeDag=activeDag;
-      vector<vector<int> > new_dag=dag;
-      //cerr << "adding deps" << endl;
-      FOREACH(j,possibleWinners)if(*i!=*j){
-        //cerr << "NEW EDGE FROM " << *j << " TO " << *i << endl;
-        include(new_dag[*j],*i);
-        include(new_activeDag[*j],*i);
+    vector<int> permutation;
+    while(!q.empty()){
+      unsigned int v=q.back();
+      permutation.push_back(v);
+      q.pop_back();
+      for(unsigned int i=dag[v].size();i--;){
+        if(!--depsCnt[dag[v][i]]){
+          q.push_back(dag[v][i]);
+        }
       }
-      if(*i!=winner && winner!=-1){
-        //cerr << "removing winner" << endl;
-        exclude(new_activeIds,winner);
-        //cerr << "eliminating" << endl;
-        eliminate(new_activeDag,winner);
+    }
+    if(permutation.size()!=dominantBlocks.size()){
+      for(unsigned int i=dag.size();i--;){
+        for(unsigned int j=dag[i].size();j--;){
+          cerr << "EDGE " << i << " -> " << dag[i][j] << endl;
+        }
       }
-      //cerr << "recursing" << endl;
-
-      bla(maxPos,leftPos+1,*i,new_activeIds,dominantBlocks,new_activeDag,new_dag,visitor);
+      for(unsigned int i=depsCnt.size();i--;){
+        if(depsCnt[i]){
+          cerr << "UNREACHABLE " << i << endl;
+        }
+      }
     }
-    if(possibleWinners.empty()){
-      //cerr << "empty case" << endl;
-      bla(maxPos,leftPos+1,-1,activeIds,dominantBlocks,activeDag,dag,visitor);
+    assert(permutation.size()==dominantBlocks.size());
+    static set<vector<int> > seen_permutations;
+    if(!seen_permutations.insert(permutation).second){
+      //cerr << "Already saw this permutation" << endl;
+      return;
     }
-    
+    vector<vector<pair<int,int> > > blocks;
+//    cerr << "Consider permutation of blocks [";
+    for(unsigned i=permutation.size();i--;){
+//      cerr << permutation[i] << ",";
+      if(dominantBlocks[permutation[i]].empty()){
+//        cerr << "skiping now empty block #" << permutation[i] << endl;
+      }else{
+        blocks.push_back(dominantBlocks[permutation[i]]);
+      }
+    }
+//    cerr << "]" << endl;
+    visitor.onBlocksSequence(blocks);
+  }
+  cerr << progress << "\r";
+}
+void foreachDAG(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
+  //1. zrób z dominantBlocks zwykły graf
+  int maxLeft = -1;
+  int maxRight = -1;
+  FOREACH(block,dominantBlocks){
+    FOREACH(edge,*block){
+      maxLeft = max(maxLeft,edge->first);
+      maxRight = max(maxRight,edge->second);
+    }
+  }
+  maxLeft++;
+  maxRight++;
+  vector<vector<int> > g(maxLeft+maxRight);
+  FOREACH(block,dominantBlocks){
+    FOREACH(edge,*block){
+      g[edge->first].push_back(maxLeft+edge->second);
+      g[maxLeft+edge->second].push_back(edge->first);
+    }
+  }
+  //2. wydobądź z tegoż grafu spójne składowe
+  vector<int> component(maxLeft+maxRight,0);
+  int components = 0;
+  for(int i=maxLeft+maxRight;i--;){
+    if(!component[i]){
+      dfs(g,component,++components,i);
+    }
+  }
+  cerr << "There are " << components << " components" << endl;
+  //3. dla każdej spójnej składowej z osobna wypisz wszystkie możliwe matchingi w niej
+  set< vector<pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > > > daglettsOptions;
+  for(int c=1;c<=components;++c){
+    int edges = 0;
+    int degs_mul = 1;
+    vector<int> nodes;
+    for(int i=0;i<g.size();++i)if(component[i]==c){
+      int deg = g[i].size();
+      cerr << "Options for " << i << " are : " ;
+      FOREACH(nbr,g[i]){
+        cerr << *nbr << " , ";
+      }
+      cerr << endl;
+      edges += deg;
+      degs_mul *= deg;
+      nodes.push_back(i);
+    }
+    assert(edges%2==0);
+    edges/=2;
+    cerr << "nodes " << nodes.size() << " edges " << edges ;
+    cerr << " edges subsets " << (1ULL <<edges) << " nodes spins " << degs_mul << endl;
+    set<vector<pair<int,int> > > matchings;
+    for(int e=0;e<degs_mul;++e){
+      int f=e;
+      vector<pair<int,int> > matching;
+      FOREACH(node,nodes){
+        int deg=g[*node].size();
+        int which = f%deg;
+        f/=deg;
+        int other = g[*node][which];
+        {
+          int p=0;
+          for(int j=0;j<matching.size();++j){
+            if(matching[j].second != *node || matching[j].first == other){
+              matching[p++]=matching[j];
+            }
+          }
+          matching.resize(p);
+        }
+        if(*node < other){
+          matching.push_back(make_pair(*node,other));
+        }
+      }
+      vector<bool> matched(g.size(),false);
+      FOREACH(m,matching){
+        matched[m->first]=matched[m->second]=true;
+      }
+      bool maximal = true;
+      FOREACH(node,nodes){
+        if(!matched[*node]){
+          FOREACH(nbr,g[*node]){
+            if(!matched[*nbr]){
+              maximal = false;
+            }
+          }
+        }
+      }
+      if(maximal){
+        matchings.insert(matching);
+      }
+    }
+    if(edges>1){
+      vector<pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > > dagletts;
+      FOREACH(matching,matchings){
+        vector<int> matched_with(g.size(),-1);
+        cerr << "Found maximal matching : " ;
+        FOREACH(m,*matching){
+          cerr << m->first << " -> " << m->second << " , ";
+        }
+        cerr << endl;
+        FOREACH(m,*matching){
+          matched_with[m->first]=m->second;
+          matched_with[m->second]=m->first;
+        }
+#define block_by_edge(x,y) block_by_edge(dominantBlocks,min(x,y),max(x,y)-maxLeft)
+        vector<pair<int,int> > must;
+        vector<pair< pair<int,int>, pair<int,int> > > options;
+        FOREACH(node,nodes){
+          FOREACH(nbr,g[*node]){
+            if(*node < *nbr){
+              if(matched_with[*node] != *nbr){
+                assert(matched_with[*node] != -1 || matched_with[*nbr] != -1);
+                int my_block = block_by_edge(*node,*nbr);
+                if(matched_with[*node] == -1){
+                  must.push_back(make_pair(block_by_edge(*nbr,matched_with[*nbr]),my_block));
+                }else if(matched_with[*nbr] == -1){
+                  must.push_back(make_pair(block_by_edge(*node,matched_with[*node]),my_block));
+                }else{
+                  options.push_back(make_pair(
+                    make_pair(block_by_edge(*nbr,matched_with[*nbr]),my_block),
+                    make_pair(block_by_edge(*node,matched_with[*node]),my_block)
+                  ));
+                  if(options.back().first > options.back().second){
+                    swap(options.back().first,options.back().second);
+                  }
+                }                
+              }
+            }
+          }
+        }
+        sort(must.begin(),must.end());
+        sort(options.begin(),options.end());
+        cerr << "Musts : " ;
+        FOREACH(m,must){
+          cerr  << m->first << " < " << m->second << ", ";
+        }
+        cerr << endl;
+        cerr << "Options : " ;
+        FOREACH(o,options){
+          cerr  << "(" << o->first.first << " < " << o->first.second << " or " << o->second.first << " < " << o->second.second <<")";
+        }
+        cerr << endl;
+        dagletts.push_back(make_pair(must,options));
+      }
+      if(!daglettsOptions.insert(dagletts).second){
+        cerr << "LOL, taki już był" << endl;
+      }
+    }
+  }
+  vector<unsigned long long int> prices;
+  unsigned long long int combinations=1;
+  prices.push_back(combinations);
+  FOREACH(dagletts,daglettsOptions){
+    unsigned long long int dags = 0;
+    FOREACH(daglett,*dagletts){
+      unsigned long long int variants = 1;
+      FOREACH(choice,daglett->second){
+        variants*=VARIANTS;
+      }
+      dags+=variants;
+    }
+    combinations*=dags;
+    prices.push_back(combinations);
+  }
+  reverse(prices.begin(),prices.end());
+  cerr << "TOooOOootal " << combinations << " combinations" << endl;
+  FOREACH(price,prices){
+    cerr << "price: " << *price << endl;
   }
 
+  vector< vector<pair< vector<pair<int,int> >, vector<pair< pair<int,int>, pair<int,int> > > > > > levels(daglettsOptions.rbegin(),daglettsOptions.rend());
 
-
+  unsigned long long int progress=0;
+  rumba(progress,prices,0,vector<vector<int> > (dominantBlocks.size()),dominantBlocks,levels,visitor);
+  cerr << "Finished with progress = " << progress << endl;
 }
+
 void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
   //TODO: interleave generation of DAG with verifiying/ensuring that it is a DAG, which should change complexity from O(2^k) to O(something * possible dags)
 
@@ -914,7 +1371,11 @@ void foreachBlocksSequence(const vector<vector<pair<int,int> > > & dominantBlock
   FOREACH(block,dominantBlocks){
     maxPos = max(maxPos,block->back().first);
   }
-  bla(maxPos,0,-1,vector<int>(),dominantBlocks,vector<vector<int> > (dominantBlocks.size(),vector<int> ()),vector<vector<int> > (dominantBlocks.size(),vector<int> ()),visitor);
+
+  foreachDAG(dominantBlocks,conflictingBlocks,visitor);
+
+  ///allConflicts(0,vector<vector<int> > (dominantBlocks.size(),vector<int>()), dominantBlocks, conflictingBlocks, visitor);
+//  bla(maxPos,0,-1,vector<int>(),dominantBlocks,vector<vector<int> > (dominantBlocks.size(),vector<int> ()),vector<vector<int> > (dominantBlocks.size(),vector<int> ()),visitor);
 }
 Graph getBestMatching(TextInfo a,TextInfo b){
   vector<vector<pair<int,int> > > dominantBlocks=getDominantBlocks(a,b);

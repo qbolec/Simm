@@ -11,7 +11,7 @@
 #include<map>
 using namespace std;
 //#define FOREACH(it,con) for(auto it=con.begin();it!=con.end();++it)
-#define FOREACH(it,con) for(__typeof(con.begin()) it=con.begin();it!=con.end();++it)
+#define FOREACH(it,con) for(__typeof((con).begin()) it=(con).begin();it!=(con).end();++it)
 string readfile(char * name){
   ifstream a(name);
   stringstream buffer;
