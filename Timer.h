@@ -14,7 +14,7 @@ class Timer
 
     bool paused;
 
-    TimerType convert(clock_t c) {
+    TimerType convert(clock_t c) const {
         return (TimerType)c/((TimerType)CLOCKS_PER_SEC);
     }
 
@@ -54,12 +54,12 @@ public:
         clocksFromBeginning += now - clockPrev;
         clockPrev = now;
     }
-    TimerType sinceBeginning() {
+    TimerType sinceBeginning() const {
         clock_t now = clock();
         clock_t total = clocksFromBeginning + clocksFromCheckpoint + now - clockPrev;
         return convert(total);
     }
-    TimerType sinceCheckpoint() {
+    TimerType sinceCheckpoint() const {
         clock_t now = clock();
         clock_t total = clocksFromCheckpoint + now - clockPrev;
         return convert(total);

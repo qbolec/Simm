@@ -155,7 +155,7 @@ int getABlock(unsigned int ap,const vector<Block> &blocks){
 }
 
 template<typename Callback>
-void foreachBlocksSticking(vector<Block> blocks,Callback &foo,TextInfo &a,TextInfo &b){
+void foreachBlocksSticking(const vector<Block>& blocks,Callback &foo,const TextInfo &a,const TextInfo &b){
   vector<pair<int,int> > implicitArcs;
   for(unsigned int i=0;i<a.next.size();++i){
     if(a.next[i]<a.next.size()){
@@ -241,7 +241,7 @@ struct JudgeSticking{
   unsigned long long int validBrackets;
   JudgeSticking(vector<Block> blocks,TextInfo a,TextInfo b):blocks(blocks),a(a),b(b),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0),stickingsTested(0),validBrackets(0){
   }
-  int getBBlock(unsigned int bp){
+  int getBBlock(unsigned int bp) const {
     for(unsigned int b=0;b<blocks.size();++b){
       if(blocks[b].containsDest(bp+1+a.next.size())){
         return b;
@@ -249,7 +249,7 @@ struct JudgeSticking{
     }
     return -1;
   }
-  int getABlock(unsigned int ap){
+  int getABlock(unsigned int ap) const {
     for(unsigned int b=0;b<blocks.size();++b){
       if(blocks[b].containsSrc(ap+1)){
         return b;
@@ -257,7 +257,7 @@ struct JudgeSticking{
     }
     return -1;
   }
-  bool areBlocksConnected(unsigned int ab,unsigned int bb,Graph sticks){
+  bool areBlocksConnected(unsigned int ab,unsigned int bb,const Graph& sticks) const {
     if(ab==bb){
       return true;
     }
@@ -270,7 +270,7 @@ struct JudgeSticking{
     assert(sticks.getOutDegree(sticks.right(ab))==1);
     return areBlocksConnected(sticks.whichLeft(sticks.getOutEdgeEnd(sticks.right(ab),0)),bb,sticks);
   }
-  void operator()(Graph sticks){
+  void operator()(const Graph& sticks){
     stickingsTested++;
     for(unsigned int i=0;i<a.next.size();++i){
       if(a.next[i]<a.next.size()){
@@ -319,7 +319,7 @@ struct JudgeSticking{
     return bestSticks;
   }
 };
-vector<Block> getBlocks(Graph matching){
+vector<Block> getBlocks(const Graph& matching){
   unsigned int lastLeft=-1;
   unsigned int lastRight=-1;
   vector<Block> blocks;
@@ -338,14 +338,14 @@ vector<Block> getBlocks(Graph matching){
   }  
   return blocks;
 }
-Graph getBestSticksForBlocks(vector<Block> blocks,TextInfo a,TextInfo b ){
+Graph getBestSticksForBlocks(const vector<Block>& blocks,const TextInfo& a,const TextInfo& b ){
   //debugDumpAsHtml(blocks);
   JudgeSticking judge(blocks,a,b);
   foreachBlocksSticking(blocks,judge,a,b);
   //cerr << "Blocks count " << blocks.size() << ", stickings tested " << judge.stickingsTested << " of which " << judge.validBrackets << " have valid brackets" << endl ;
   return judge.getBestSticks();
 }
-Graph getBestSticksForMatching(Graph matching,TextInfo a,TextInfo b){
+Graph getBestSticksForMatching(const Graph& matching,const TextInfo& a,const TextInfo& b){
   return getBestSticksForBlocks(getBlocks(matching),a,b);
 }
 
