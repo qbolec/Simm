@@ -1,3 +1,6 @@
+#ifndef GRAPH_H
+#define GRAPH_H
+
 class Graph{
   unsigned int leftSize;
   unsigned int rightSize;
@@ -70,3 +73,24 @@ public:
     addEdge(b,a);
   }
 };
+
+
+void copyEdges(Graph a,Graph &b){
+  for(unsigned int id=0;id<a.getNodesCount();++id){
+    for(unsigned int j=0;j<a.getOutDegree(id);++j){
+      unsigned int endId = a.getOutEdgeEnd(id,j);
+      b.addEdge(id,endId);
+    }
+  }  
+}
+Graph merge(Graph a,Graph b){
+  assert(a.getLeftSize()==b.getLeftSize());
+  assert(a.getRightSize()==b.getRightSize());
+  Graph merged(a.getLeftSize(),a.getRightSize());
+  copyEdges(a,merged);
+  copyEdges(b,merged);
+  return merged;
+
+}
+
+#endif

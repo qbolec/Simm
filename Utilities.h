@@ -1,3 +1,6 @@
+#ifndef UTILITIES_H
+#define UTILITIES_H
+
 #include<set>
 #include<memory>
 #include<cassert>
@@ -26,7 +29,6 @@ string erase(string a,int start,int len){
 template<typename T,typename A>
 vector<T,A> erase(const vector<T,A> &v,T x){
   vector<T,A> newV;
-  unsigned int j=0;
   for(unsigned int i=0;i<v.size();++i){
     if(v[i]!=x){
       newV.push_back(v[i]);
@@ -86,3 +88,44 @@ bool contains(I begin,I end,T x){
   return false;
 }
   
+string makeVisibleChar(char x){
+  switch(x){
+  case '\n':
+    return "&#8617;\n";    
+  default:
+    string s;
+    s+=x;
+    return s;
+  }
+}
+
+
+bool isSubsetOf(vector<int> &A,vector<int> &B,int a,int b){
+  (void)a;
+  if(A.size()<=B.size()){
+    int bp=0;
+    for(int i=0;i<A.size();++i)if(A[i]!=b){
+      while(bp<B.size() && B[bp]<A[i]){
+        bp++;
+      }
+      if(bp>=B.size() || B[bp]!=A[i]){
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+bool isOk(int v,const vector<int> &take,const vector<vector<int> > &originalGraph){
+  if(take[v]==-1){
+    FOREACH(n,originalGraph[v]){
+      if(take[*n]==1){
+        return true;
+      }
+    }
+    return false;
+  }
+  return true;
+}
+
+#endif

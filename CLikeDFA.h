@@ -1,3 +1,6 @@
+#ifndef CLIKEDFA_H
+#define CLIKEDFA_H
+
 class CLikeDFA : public DFA{
   vector<CHARACTER_CLASS> v(){
     vector<CHARACTER_CLASS> v;
@@ -140,3 +143,5 @@ public:
     
   }
 };
+
+#endif //CLIKEDFA_H
