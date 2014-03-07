@@ -1,0 +1,7 @@
+void greet(){
+  printf("%s\n","Hello World!");
+}
+void main(){
+  greet();
+  return 0;
+}
