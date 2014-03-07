@@ -6,109 +6,186 @@
 #include "Block.h"
 #include "Graph.h"
 
-void debugDumpAsHtml(TextInfo a){
-  cerr << "<style>i{background:yellow;}b{background:black;color:white}</style>";
-  cerr << "<h1>original text:</h1>";
-  cerr << "<pre>" << a.original_text << "</pre>";
-  cerr << "<h1>important text:</h1>";
-  cerr << "<pre>" << a.important_text<< "</pre>";
-  cerr << "<h1>visualized classes:</h1>";
-  cerr << "<pre>";
+
+struct FileWriter
+{
+    std::fstream file;
+    bool printDiagnostic;
+    FileWriter(const std::string &name, bool diagnostic = true) :
+        file(name.c_str(), std::fstream::out), printDiagnostic(diagnostic) {}
+    ~FileWriter()
+    {
+        file.close();
+    }
+};
+template <typename T>
+FileWriter& operator<<(FileWriter& fw, const T& elem)
+{
+    if (fw.printDiagnostic) cerr << elem;
+    fw.file << elem;
+    return fw;
+}
+
+
+template <typename Output>
+void debugDumpAsHtml(TextInfo a, Output& output){
+  output << "<style>i{background:yellow;}b{background:black;color:white}</style>";
+  output << "<h1>original text:</h1>";
+  output << "<pre>" << a.original_text << "</pre>";
+  output << "<h1>important text:</h1>";
+  output << "<pre>" << a.important_text<< "</pre>";
+  output << "<h1>visualized classes:</h1>";
+  output << "<pre>";
   for(unsigned int i=0;i<a.original_text.length();++i){
     switch (a.states[i]) {
     case DFA::IGNORABLE:
-      cerr << "<i title=" << (int)a.original_text[i] << ">" << makeVisibleChar(a.original_text[i])<< "</i>";
+      output << "<i title=" << (int)a.original_text[i] << ">" << makeVisibleChar(a.original_text[i])<< "</i>";
       break;
    case DFA::OPEN_BRACKET:
-      cerr << "<b class=open_bracket title=open>" << makeVisibleChar(a.original_text[i])<< "</b>";
+      output << "<b class=open_bracket title=open>" << makeVisibleChar(a.original_text[i])<< "</b>";
       break;
    case DFA::END_BRACKET:
-      cerr << "<b class=end_bracket title=close>" << makeVisibleChar(a.original_text[i]) << "</b>";
+      output << "<b class=end_bracket title=close>" << makeVisibleChar(a.original_text[i]) << "</b>";
       break;
    case DFA::IMPORTANT:
-     cerr << makeVisibleChar(a.original_text[i]);
+     output << makeVisibleChar(a.original_text[i]);
      break;
     }
   }
-  cerr << "</pre>";
+  output << "</pre>";
 }
-void debugDumpAsHtml(Graph g,string name){
-  cerr << "<h1>Graph "<<name << "</h1>";
-  cerr << "<table><tr><td><pre>";
+template <typename Output>
+void debugDumpAsHtml(Graph g,string name, Output& output){
+  output << "<h1>Graph "<<name << "</h1>";
+  output << "<table><tr><td><pre>";
   int lastId = -1;
   for(unsigned int i=0;i<g.getLeftSize();++i){
     int id=g.left(i);
-    cerr << id << ": ";
+    output << id << ": ";
     for(unsigned int j=0;j<g.getOutDegree(id);++j){
       int endId = g.getOutEdgeEnd(id,j);
       if(endId!=lastId+1){
-        cerr << "<b>" << endId << "</b>,";
+        output << "<b>" << endId << "</b>,";
       }else{
-        cerr << endId<< ",";
+        output << endId<< ",";
       }
       lastId = endId;      
     }
-    cerr << endl;
+    output << "\n";
   }
-  cerr << "</pre></td><td><pre>";
+  output << "</pre></td><td><pre>";
   for(unsigned int i=0;i<g.getRightSize();++i){
     int id=g.right(i);
-    cerr << id << ": ";
+    output << id << ": ";
     for(unsigned int j=0;j<g.getOutDegree(id);++j){
       int endId = g.getOutEdgeEnd(id,j);
       if(endId!=lastId+1){
-        cerr << "<b>" << endId << "</b>,";
+        output << "<b>" << endId << "</b>,";
       }else{
-        cerr << endId<< ",";
+        output << endId<< ",";
       }
       lastId = endId;      
     }
-    cerr << endl;
+    output << "\n";
   }  
-  cerr << "</pre></td></tr></table>";
+  output << "</pre></td></tr></table>";
   
 }
 
-void debugDumpAsHtml(vector<Block> blocks){
-  cerr << "<h1>code blocks</h1>";
-  cerr << "<pre>";
+template <typename Output>
+void debugDumpAsHtml(vector<Block> blocks, Output& output){
+  output << "<h1>code blocks</h1>";
+  output << "<pre>";
   FOREACH(block,blocks){
-    cerr << block->startSrc << " -> " << block->startDest << " (len: " << block->length << ")<br>";
+    output << block->startSrc << " -> " << block->startDest << " (len: " << block->length << ")<br>";
   }
-  cerr << "</pre>";
+  output << "</pre>";
 }
-void debugDumpAsHtml(vector<pair<int,int> > matchInfo){
-  cerr << "<pre>";
+template <typename Output>
+void debugDumpAsHtml(vector<pair<int,int> > matchInfo, Output& output){
+  output << "<pre>";
   for(unsigned int i=0;i<matchInfo.size();++i){
-    cerr << i << ": " << matchInfo[i].first << ',' << matchInfo[i].second << endl;
+    output << i << ": " << matchInfo[i].first << ',' << matchInfo[i].second << "\n";
   }
-  cerr << "</pre>";
+  output << "</pre>";
 }
 
-void officialOutput(vector<pair<int,int> > matchInfo){
+template <typename Output>
+void officialOutput(vector<pair<int,int> > matchInfo, Output& output){
   vector<int> open;
   for(unsigned int i=0;i<matchInfo.size();++i){
     if(matchInfo[i].first == -1){
       if(!i || matchInfo[i-1].first!=-1){
-        cout << i << " open 0" << endl;
+        output << i << " open 0" << "\n";
         open.push_back(i);
       }
     }else{
       if(matchInfo[i].second == -1){
-        cout << i << " open " << (matchInfo[i].first+1) << endl;
+        output << i << " open " << (matchInfo[i].first+1) << "\n";
         open.push_back(i);
       }else{
         while(!open.empty() && matchInfo[i].second <open.back()){
           open.pop_back();
-          cout << i << " close" << endl;
+          output << i << " close" << "\n";
         }
       }
     }
   }
   while(!open.empty()){
     open.pop_back();
-    cout << matchInfo.size() << " close" << endl;
+    output << matchInfo.size() << " close" << "\n";
   }
+}
+
+
+template <typename Output>
+void colorfulOutput(const TextInfo &info, Output& output)
+{
+    static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "yellow", "brown"};
+    vector<int> open;
+    int last = 0;
+    output << "<b><pre><font size=\"6\">\n";
+    for(unsigned int i=0; i<info.fullMatchInfo.size(); ++i)
+    {
+        if(info.fullMatchInfo[i].first == -1)
+        {
+            if(!i || info.fullMatchInfo[i-1].first!=-1)
+            {
+                output << info.original_text.substr(last, i-last); // info.atomOrigSeqValue(last,i-last);
+                output << "<font color=\"" << colors[0] << "\">";
+                open.push_back(i);
+                last = i;
+            }
+        }
+        else
+        {
+            if (info.fullMatchInfo[i].second == -1)
+            {
+                output << info.original_text.substr(last, i-last); //info.atomOrigSeqValue(last,i-last);
+                output << "<font color=\"" << colors[(info.fullMatchInfo[i].first) % (colors.size()-1) + 1] << "\">";
+                open.push_back(i);
+                last = i;
+            }
+            else
+            {
+                while(!open.empty() && info.fullMatchInfo[i].second <open.back())
+                {
+                    open.pop_back();
+                    output << info.original_text.substr(last, i-last); //info.atomOrigSeqValue(last,i-last);
+                    output << "</font>";
+                    last = i;
+                }
+            }
+        }
+    }
+    while(!open.empty())
+    {
+        open.pop_back();
+        output << info.original_text.substr(last,info.original_text.size()-1-last); //info.atomOrigSeqValue(last,info.size()-1-last);
+        last = info.original_text.size()-1;
+        output << "</font>";
+    }
+    output << "</font></pre></b>";
 }
 
 #endif // OUTPUT

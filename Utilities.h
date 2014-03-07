@@ -16,7 +16,15 @@ using namespace std;
 //#define FOREACH(it,con) for(auto it=con.begin();it!=con.end();++it)
 #define FOREACH(it,con) for(__typeof((con).begin()) it=(con).begin();it!=(con).end();++it)
 string readfile(char * name){
-  ifstream a(name);
+  ifstream a;
+  a.open(name);
+  if (!a) {
+    a.open((string("samples/") + name).c_str());
+  }
+  if (!a) {
+    cerr << "Failed to open file " << name << "\n";
+    return "";
+  }
   stringstream buffer;
   buffer << a.rdbuf();
   return buffer.str();

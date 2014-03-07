@@ -7,8 +7,8 @@
 
 void getCheapest(string a,string b){
   CLikeDFA dfa;
-  
-  return getCheapest(a,b,dfa);
+  FileWriter fw("output.html", true);
+  return getCheapest(a,b,dfa, fw);
 }
 int main(int argc,char * args[]){
   if(argc!=3){

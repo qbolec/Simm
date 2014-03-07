@@ -997,7 +997,8 @@ Graph getBestMatching(TextInfo a,TextInfo b){
   cerr << "Tested " << visitor.testedSequences << " sequences of which " << visitor.validBrackets << " have valid brackets " << endl;
   return visitor.bestMatching;
 }
-void getCheapest(string aText,string bText,DFA &dfa){
+template <typename Output>
+void getCheapest(string aText,string bText,DFA &dfa, Output& output){
   TextInfo a = analyzeText(aText,dfa);
   TextInfo b = analyzeText(bText,dfa);
   
@@ -1032,14 +1033,16 @@ void getCheapest(string aText,string bText,DFA &dfa){
 
   inflateWhitespaces(a,b,matching);
   
-
-
-  cerr << "<h1>Official</h1>";
-  cerr << "<pre>";
   cout << "A:" << endl;
-  officialOutput(a.fullMatchInfo);
+  officialOutput(a.fullMatchInfo, cout);
   cout << "B:" << endl;
-  officialOutput(b.fullMatchInfo);
-  cerr << "</pre>";
+  officialOutput(b.fullMatchInfo, cout);
+
+  output << "<h1>Official</h1>";
+  output << "<table><tr><td align=\"left\" style=\"padding-right: 100px;\">";
+  colorfulOutput(a, output);
+  output << "</td><td>";
+  colorfulOutput(b, output);
+  output << "</td></tr></table>";
   
 }
