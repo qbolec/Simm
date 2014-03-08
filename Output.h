@@ -188,4 +188,20 @@ void colorfulOutput(const TextInfoBeta<Atom> &info, Output& output)
     output << "</font></pre></b>";
 }
 
+void debugDumpAsText(const Graph &graph, string name)
+{
+    cerr << "Presenting graph " << name << endl;
+    for (unsigned int left=0; left<graph.getLeftSize(); left++)
+    {
+        int leftNode = graph.left(left);
+        cerr << left << " -> ";
+        for (unsigned int j=0; j<graph.getOutDegree(leftNode); j ++)
+        {
+            int right = graph.whichRight(graph.getOutEdgeEnd(leftNode,j));
+            cerr << (j==0?"":", ") << right;
+        }
+        cerr << endl;
+    }
+}
+
 #endif // OUTPUT

@@ -1,5 +1,5 @@
 CFLAGS= -Wformat -Wall -Wextra -Wunused-parameter -Wno-unused-result -Wno-sign-compare -std=c++11
-ALLTARGETS=simm2
+ALLTARGETS=simm2 simmexp
 
 all: $(ALLTARGETS)
 simm2: Main2.cpp *.h

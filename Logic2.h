@@ -989,16 +989,25 @@ struct Logic2 {
     cerr << "Tested " << visitor.testedSequences << " sequences of which " << visitor.validBrackets << " have valid brackets " << endl;
     return visitor.bestMatching;
   }
+  
+  template <typename Output>
+  void getCheapest(string aText,string bText,DFA &dfa,Output& output)
+  {
+      TextInfoBeta<Atom> a = analyzeTextBeta<Atom>(aText,dfa);
+      TextInfoBeta<Atom> b = analyzeTextBeta<Atom>(bText,dfa);
+      cerr << "Text sizes: " << a.size() << ", " << b.size() << endl;
+
+      Graph matching = getBestMatching(a,b);
+      dealWithMatching(a, b, matching, false, output);
+  }
+
 
   template <typename Output>
-  void getCheapest(string aText,string bText,DFA &dfa, Output& output){
-    TextInfoBeta<Atom> a = analyzeTextBeta<Atom>(aText,dfa);
-    TextInfoBeta<Atom> b = analyzeTextBeta<Atom>(bText,dfa);
-    
-    Graph matching = getBestMatching(a,b);
+  void dealWithMatching(TextInfoBeta<Atom>& a, TextInfoBeta<Atom>& b, const Graph& matching, bool trivialSticks, Output& output)
+  {
     vector<Block> blocks = getBlocks(matching);
     //debugDumpAsHtml(blocks);
-    Graph sticks = getBestSticksForBlocks(blocks,a,b);
+    Graph sticks = trivialSticks ? Graph(blocks.size(), blocks.size()) : getBestSticksForBlocks(blocks,a,b);
     //debugDumpAsHtml(sticks,"sticks");
     a.matchInfo.resize(a.size(),make_pair(-1,-1));
     b.matchInfo.resize(b.size(),make_pair(-1,-1));
