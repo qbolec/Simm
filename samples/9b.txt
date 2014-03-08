@@ -1,0 +1,6 @@
+func for j = 1..10
+  a[j] += sum
+end
+for i = 1..10
+  a[j] = 1
+end

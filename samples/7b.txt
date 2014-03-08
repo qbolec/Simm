@@ -1,0 +1,4 @@
+if(best){
+  throw new Exception();
+}else
+  goto(7);

@@ -1,0 +1,8 @@
+class Test{
+  private void main(){
+    return 42;
+  }
+  public void test(){
+    return this->main();
+  }
+}
