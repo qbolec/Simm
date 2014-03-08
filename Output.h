@@ -27,8 +27,8 @@ FileWriter& operator<<(FileWriter& fw, const T& elem)
 }
 
 
-template <typename Output>
-void debugDumpAsHtml(TextInfo a, Output& output){
+template <typename Output, class Atom>
+void debugDumpAsHtml(TextInfoBeta<Atom> a, Output& output){
   output << "<style>i{background:yellow;}b{background:black;color:white}</style>";
   output << "<h1>original text:</h1>";
   output << "<pre>" << a.original_text << "</pre>";
@@ -36,19 +36,19 @@ void debugDumpAsHtml(TextInfo a, Output& output){
   output << "<pre>" << a.important_text<< "</pre>";
   output << "<h1>visualized classes:</h1>";
   output << "<pre>";
-  for(unsigned int i=0;i<a.original_text.length();++i){
+  for(unsigned int i=0;i<a.origSize();++i){
     switch (a.states[i]) {
     case DFA::IGNORABLE:
-      output << "<i title=" << (int)a.original_text[i] << ">" << makeVisibleChar(a.original_text[i])<< "</i>";
+      output << "<i title=" << (int)a.atomOrigValue(i) << ">" << makeVisibleChar(a.atomOrigValue(i))<< "</i>";
       break;
    case DFA::OPEN_BRACKET:
-      output << "<b class=open_bracket title=open>" << makeVisibleChar(a.original_text[i])<< "</b>";
+      output << "<b class=open_bracket title=open>" << makeVisibleChar(a.atomOrigValue(i))<< "</b>";
       break;
    case DFA::END_BRACKET:
-      output << "<b class=end_bracket title=close>" << makeVisibleChar(a.original_text[i]) << "</b>";
+      output << "<b class=end_bracket title=close>" << makeVisibleChar(a.atomOrigValue(i)) << "</b>";
       break;
    case DFA::IMPORTANT:
-     output << makeVisibleChar(a.original_text[i]);
+     output << makeVisibleChar(a.atomOrigValue(i));
      break;
     }
   }
@@ -138,8 +138,8 @@ void officialOutput(vector<pair<int,int> > matchInfo, Output& output){
 }
 
 
-template <typename Output>
-void colorfulOutput(const TextInfo &info, Output& output)
+template <typename Output, class Atom>
+void colorfulOutput(const TextInfoBeta<Atom> &info, Output& output)
 {
     static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "yellow", "brown"};
     vector<int> open;
@@ -151,7 +151,7 @@ void colorfulOutput(const TextInfo &info, Output& output)
         {
             if(!i || info.fullMatchInfo[i-1].first!=-1)
             {
-                output << info.original_text.substr(last, i-last); // info.atomOrigSeqValue(last,i-last);
+                output << info.atomOrigSeqValue(last,i-last);
                 output << "<font color=\"" << colors[0] << "\">";
                 open.push_back(i);
                 last = i;
@@ -161,7 +161,7 @@ void colorfulOutput(const TextInfo &info, Output& output)
         {
             if (info.fullMatchInfo[i].second == -1)
             {
-                output << info.original_text.substr(last, i-last); //info.atomOrigSeqValue(last,i-last);
+                output << info.atomOrigSeqValue(last,i-last);
                 output << "<font color=\"" << colors[(info.fullMatchInfo[i].first) % (colors.size()-1) + 1] << "\">";
                 open.push_back(i);
                 last = i;
@@ -171,7 +171,7 @@ void colorfulOutput(const TextInfo &info, Output& output)
                 while(!open.empty() && info.fullMatchInfo[i].second <open.back())
                 {
                     open.pop_back();
-                    output << info.original_text.substr(last, i-last); //info.atomOrigSeqValue(last,i-last);
+                    output << info.atomOrigSeqValue(last,i-last);
                     output << "</font>";
                     last = i;
                 }
@@ -181,8 +181,8 @@ void colorfulOutput(const TextInfo &info, Output& output)
     while(!open.empty())
     {
         open.pop_back();
-        output << info.original_text.substr(last,info.original_text.size()-1-last); //info.atomOrigSeqValue(last,info.size()-1-last);
-        last = info.original_text.size()-1;
+        output << info.atomOrigSeqValue(last,info.size()-1-last);
+        last = info.origSize()-1;
         output << "</font>";
     }
     output << "</font></pre></b>";

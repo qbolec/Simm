@@ -5,10 +5,12 @@
 #include "Logic2.h"
 
 
+template <class Atom>
 void getCheapest(string a,string b){
   CLikeDFA dfa;
   FileWriter fw("output.html", true);
-  return getCheapest(a,b,dfa, fw);
+  Logic2<Atom> logic2;
+  return logic2.getCheapest(a,b,dfa,fw);
 }
 int main(int argc,char * args[]){
   if(argc!=3){
@@ -17,6 +19,7 @@ int main(int argc,char * args[]){
       << args[0] << " fileA fileB" << endl;
     return 1;
   }
-  getCheapest(readfile(args[1]),readfile(args[2]));
+  getCheapest<Char>(readfile(args[1]),readfile(args[2]));
+  cout << "\n";
   return 0;
 }

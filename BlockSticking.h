@@ -137,7 +137,8 @@ void foreachMaximumIndependentSet(const vector<vector<int> > & originalGraph,vec
 
 }
 
-int getBBlock(unsigned int bp,const vector<Block> &blocks,const TextInfo & a){
+template <class Atom>
+int getBBlock(unsigned int bp,const vector<Block> &blocks,const TextInfoBeta<Atom> & a){
   for(unsigned int b=0;b<blocks.size();++b){
     if(blocks[b].containsDest(bp+1+a.next.size())){
       return b;
@@ -154,8 +155,9 @@ int getABlock(unsigned int ap,const vector<Block> &blocks){
   return -1;
 }
 
-template<typename Callback>
-void foreachBlocksSticking(const vector<Block>& blocks,Callback &foo,const TextInfo &a,const TextInfo &b){
+
+template<typename Callback, class Atom>
+void foreachBlocksSticking(const vector<Block>& blocks,Callback &foo,const TextInfoBeta<Atom> &a,const TextInfoBeta<Atom> &b){
   vector<pair<int,int> > implicitArcs;
   for(unsigned int i=0;i<a.next.size();++i){
     if(a.next[i]<a.next.size()){
@@ -230,16 +232,16 @@ void foreachBlocksSticking(const vector<Block>& blocks,Callback &foo,const TextI
   //foreachBlocksSticking(blocks,foo,0,sticks);
 }
 
-
+template <class Atom>
 struct JudgeSticking{
   vector<Block> blocks;
-  TextInfo a;
-  TextInfo b;
+  const TextInfoBeta<Atom> &a;
+  const TextInfoBeta<Atom> &b;
   Graph bestSticks;
   unsigned int bestSticksCount;
   unsigned long long int stickingsTested;
   unsigned long long int validBrackets;
-  JudgeSticking(vector<Block> blocks,TextInfo a,TextInfo b):blocks(blocks),a(a),b(b),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0),stickingsTested(0),validBrackets(0){
+  JudgeSticking(vector<Block> blocks,const TextInfoBeta<Atom> &a, const TextInfoBeta<Atom>& b):blocks(blocks),a(a),b(b),bestSticks(blocks.size(),blocks.size()),bestSticksCount(0),stickingsTested(0),validBrackets(0){
   }
   int getBBlock(unsigned int bp) const {
     for(unsigned int b=0;b<blocks.size();++b){
@@ -338,14 +340,18 @@ vector<Block> getBlocks(const Graph& matching){
   }  
   return blocks;
 }
-Graph getBestSticksForBlocks(const vector<Block>& blocks,const TextInfo& a,const TextInfo& b ){
+
+template <class Atom>
+Graph getBestSticksForBlocks(const vector<Block>& blocks,const TextInfoBeta<Atom>& a,const TextInfoBeta<Atom>& b ){
   //debugDumpAsHtml(blocks);
-  JudgeSticking judge(blocks,a,b);
+  JudgeSticking<Atom> judge(blocks,a,b);
   foreachBlocksSticking(blocks,judge,a,b);
   //cerr << "Blocks count " << blocks.size() << ", stickings tested " << judge.stickingsTested << " of which " << judge.validBrackets << " have valid brackets" << endl ;
   return judge.getBestSticks();
 }
-Graph getBestSticksForMatching(const Graph& matching,const TextInfo& a,const TextInfo& b){
+
+template <class Atom>
+Graph getBestSticksForMatching(const Graph& matching,const TextInfoBeta<Atom>& a,const TextInfoBeta<Atom>& b){
   return getBestSticksForBlocks(getBlocks(matching),a,b);
 }
 

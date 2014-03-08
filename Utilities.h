@@ -95,6 +95,35 @@ bool contains(I begin,I end,T x){
   }
   return false;
 }
+
+bool include(vector<int> &v,int x){
+  if(find(v.begin(),v.end(),x)==v.end()){
+    v.push_back(x);
+    return true;
+  }else{
+    return false;
+  }
+}
+bool exclude(vector<int> &v,int x){
+  if(find(v.begin(),v.end(),x)==v.end()){
+    return false;
+  }else{
+    v.erase(find(v.begin(),v.end(),x));
+    return true;
+  }
+}
+void eliminate(vector<vector<int> > & dag,int i){
+  for(unsigned int j=dag.size();j--;){
+    if(find(dag[j].begin(),dag[j].end(),i)!=dag[j].end()){
+      assert(j!=i);
+      for(unsigned int k=dag[i].size();k--;){
+        include(dag[j],dag[i][k]);
+      }
+      exclude(dag[j],i);
+    }
+  }
+  dag[i].clear();
+}
   
 string makeVisibleChar(char x){
   switch(x){
