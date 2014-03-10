@@ -38,7 +38,7 @@ inline int isPrefix(const string &sshort, const string &slong) {
     if (nonproperPrefix && sshort.size() == slong.size()) return 2;
     return (int)nonproperPrefix;
 }
-
+static const int INDENT_SPACES = 2;
 vector<Token> tokenize(const string &raw_text)
 {
     cerr << "Tokenize text of length " << raw_text.size() << endl;
@@ -157,8 +157,7 @@ vector<Token> tokenize(const string &raw_text)
         "::",
         {"//",OTHER},
         {"/*",OPEN_BRACKET},
-        {"*/",CLOSE_BRACKET},
-        {"    ",INDENT}
+        {"*/",CLOSE_BRACKET}
     };
     sort(glueStrings.begin(), glueStrings.end());
 
@@ -196,7 +195,32 @@ vector<Token> tokenize(const string &raw_text)
             gluedTokens.push_back(nongluedTokens[i]);
         }
     }
-    return gluedTokens;
+    
+#define TOKEN_VALUE(token) raw_text.substr((token).start, (token).length)
+    
+    vector<Token> withIndent;
+    for (unsigned int i=0; i<gluedTokens.size(); i++) {
+      withIndent.push_back(gluedTokens[i]);
+      if (TOKEN_VALUE(gluedTokens[i]) == "\n") {
+        while (true)
+        {
+          bool nextIndent = true;
+          for (int j=0; j<INDENT_SPACES; j++) {
+            if (TOKEN_VALUE(gluedTokens[i+1+j]) != " ") {
+              nextIndent = false;
+              break;
+            }
+          }
+          
+          if (!nextIndent) break;
+          
+          withIndent.push_back(Token(gluedTokens[i+1].start, INDENT_SPACES, INDENT));
+          i += INDENT_SPACES;
+        }
+      }
+    } 
+    
+    return withIndent;
 
 }
 

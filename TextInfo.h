@@ -53,9 +53,7 @@ struct Char
 template <typename Atom>
 struct TextInfoBeta
 {
-private:
     string original_text;
-public:
     void setText(const string &text) {
       original_text = text;
     }

@@ -12,6 +12,7 @@ void getCheapest(string a,string b){
   Logic2<Atom> logic2;
   return logic2.getCheapest(a,b,dfa,fw);
 }
+
 int main(int argc,char * args[]){
   if(argc!=3){
     cerr 
@@ -19,7 +20,7 @@ int main(int argc,char * args[]){
       << args[0] << " fileA fileB" << endl;
     return 1;
   }
-  getCheapest<Char>(readfile(args[1]),readfile(args[2]));
+  getCheapest<Token>(readfile(args[1]),readfile(args[2]));
   cout << "\n";
   return 0;
 }

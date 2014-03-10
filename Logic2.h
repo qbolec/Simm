@@ -990,11 +990,14 @@ struct Logic2 {
     return visitor.bestMatching;
   }
   
+  void debugTextsAfterAnalysis(const TextInfoBeta<Atom> &a, const TextInfoBeta<Atom>& b);
+  
   template <typename Output>
   void getCheapest(string aText,string bText,DFA &dfa,Output& output)
   {
       TextInfoBeta<Atom> a = analyzeTextBeta<Atom>(aText,dfa);
       TextInfoBeta<Atom> b = analyzeTextBeta<Atom>(bText,dfa);
+      debugTextsAfterAnalysis(a,b);
       cerr << "Text sizes: " << a.size() << ", " << b.size() << endl;
 
       Graph matching = getBestMatching(a,b);
@@ -1049,3 +1052,16 @@ struct Logic2 {
     
   }
 };
+
+template <>
+void Logic2<Char>::debugTextsAfterAnalysis(const TextInfoBeta<Char> &, const TextInfoBeta<Char>& ) {}
+
+template <>
+void Logic2<Token>::debugTextsAfterAnalysis(const TextInfoBeta<Token> &a, const TextInfoBeta<Token>& b) {
+  FileWriter fw1("tokens-1.html", false);
+  printColorfulTokens(a.original_text, a.original_atoms, fw1);
+                      
+  FileWriter fw2("tokens-2.html", false);
+  printColorfulTokens(b.original_text, b.original_atoms, fw2);
+}
+

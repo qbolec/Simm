@@ -188,6 +188,29 @@ void colorfulOutput(const TextInfoBeta<Atom> &info, Output& output)
     output << "</font></pre></b>";
 }
 
+template <typename Output>
+void printColorfulTokens(const string& text, const vector<Token>& tokens, Output& output)
+{
+    using namespace CharacterType;
+    output << "<b><pre><font size=\"6\">\n";
+    static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "brown"};
+    for (int i=0, cind=0; i<tokens.size(); i++)
+    {
+        output << "<font color=\"" << colors[cind] << "\">";
+        output << text.substr(tokens[i].start, tokens[i].length);
+        if (tokens[i].type == INDENT) {
+          output << "<font color=\"black\">`</font>";
+        }
+        output << "</font>";
+        if (tokens[i].type != WHITESPACE && tokens[i].type != INDENT)
+        {
+            cind=(cind+1)%colors.size();
+        }
+    }
+    output << "</font></pre></b>";
+}
+
+
 void debugDumpAsText(const Graph &graph, string name)
 {
     cerr << "Presenting graph " << name << endl;
