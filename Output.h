@@ -9,21 +9,21 @@
 
 struct FileWriter
 {
-    std::fstream file;
-    bool printDiagnostic;
-    FileWriter(const std::string &name, bool diagnostic = true) :
-        file(name.c_str(), std::fstream::out), printDiagnostic(diagnostic) {}
-    ~FileWriter()
-    {
-        file.close();
-    }
+  std::fstream file;
+  bool printDiagnostic;
+  FileWriter(const std::string &name, bool diagnostic = true) :
+  file(name.c_str(), std::fstream::out), printDiagnostic(diagnostic) {}
+  ~FileWriter()
+  {
+    file.close();
+  }
 };
 template <typename T>
 FileWriter& operator<<(FileWriter& fw, const T& elem)
 {
-    if (fw.printDiagnostic) cerr << elem;
-    fw.file << elem;
-    return fw;
+  if (fw.printDiagnostic) cerr << elem;
+  fw.file << elem;
+  return fw;
 }
 
 
@@ -38,18 +38,18 @@ void debugDumpAsHtml(TextInfoBeta<Atom> a, Output& output){
   output << "<pre>";
   for(unsigned int i=0;i<a.origSize();++i){
     switch (a.states[i]) {
-    case DFA::IGNORABLE:
-      output << "<i title=" << (int)a.atomOrigValue(i) << ">" << makeVisibleChar(a.atomOrigValue(i))<< "</i>";
-      break;
-   case DFA::OPEN_BRACKET:
-      output << "<b class=open_bracket title=open>" << makeVisibleChar(a.atomOrigValue(i))<< "</b>";
-      break;
-   case DFA::END_BRACKET:
-      output << "<b class=end_bracket title=close>" << makeVisibleChar(a.atomOrigValue(i)) << "</b>";
-      break;
-   case DFA::IMPORTANT:
-     output << makeVisibleChar(a.atomOrigValue(i));
-     break;
+      case DFA::IGNORABLE:
+        output << "<i title=" << (int)a.atomOrigValue(i) << ">" << makeVisibleChar(a.atomOrigValue(i))<< "</i>";
+        break;
+      case DFA::OPEN_BRACKET:
+        output << "<b class=open_bracket title=open>" << makeVisibleChar(a.atomOrigValue(i))<< "</b>";
+        break;
+      case DFA::END_BRACKET:
+        output << "<b class=end_bracket title=close>" << makeVisibleChar(a.atomOrigValue(i)) << "</b>";
+        break;
+      case DFA::IMPORTANT:
+        output << makeVisibleChar(a.atomOrigValue(i));
+        break;
     }
   }
   output << "</pre>";
@@ -141,90 +141,134 @@ void officialOutput(vector<pair<int,int> > matchInfo, Output& output){
 template <typename Output, class Atom>
 void colorfulOutput(const TextInfoBeta<Atom> &info, Output& output)
 {
-    static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "yellow", "brown"};
-    vector<int> open;
-    int last = 0;
-    output << "<b><pre><font size=\"6\">\n";
-    for(unsigned int i=0; i<info.fullMatchInfo.size(); ++i)
+  static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "yellow", "brown"};
+  vector<int> open;
+  int last = 0;
+  output << "<b><pre><font size=\"6\">\n";
+  for(unsigned int i=0; i<info.fullMatchInfo.size(); ++i)
+  {
+    if(info.fullMatchInfo[i].first == -1)
     {
-        if(info.fullMatchInfo[i].first == -1)
-        {
-            if(!i || info.fullMatchInfo[i-1].first!=-1)
-            {
-                output << info.atomOrigSeqValue(last,i-last);
-                output << "<font color=\"" << colors[0] << "\">";
-                open.push_back(i);
-                last = i;
-            }
-        }
-        else
-        {
-            if (info.fullMatchInfo[i].second == -1)
-            {
-                output << info.atomOrigSeqValue(last,i-last);
-                output << "<font color=\"" << colors[(info.fullMatchInfo[i].first) % (colors.size()-1) + 1] << "\">";
-                open.push_back(i);
-                last = i;
-            }
-            else
-            {
-                while(!open.empty() && info.fullMatchInfo[i].second <open.back())
-                {
-                    open.pop_back();
-                    output << info.atomOrigSeqValue(last,i-last);
-                    output << "</font>";
-                    last = i;
-                }
-            }
-        }
+      if(!i || info.fullMatchInfo[i-1].first!=-1)
+      {
+        output << info.atomOrigSeqValue(last,i-last);
+        output << "<font color=\"" << colors[0] << "\">";
+        open.push_back(i);
+        last = i;
+      }
     }
-    while(!open.empty())
+    else
     {
-        open.pop_back();
-        output << info.atomOrigSeqValue(last,info.size()-1-last);
-        last = info.origSize()-1;
-        output << "</font>";
+      if (info.fullMatchInfo[i].second == -1)
+      {
+        output << info.atomOrigSeqValue(last,i-last);
+        output << "<font color=\"" << colors[(info.fullMatchInfo[i].first) % (colors.size()-1) + 1] << "\">";
+        open.push_back(i);
+        last = i;
+      }
+      else
+      {
+        while(!open.empty() && info.fullMatchInfo[i].second <open.back())
+        {
+          open.pop_back();
+          output << info.atomOrigSeqValue(last,i-last);
+          output << "</font>";
+          last = i;
+        }
+      }
     }
-    output << "</font></pre></b>";
+  }
+  while(!open.empty())
+  {
+    open.pop_back();
+    output << info.atomOrigSeqValue(last,info.size()-1-last);
+    last = info.origSize()-1;
+    output << "</font>";
+  }
+  output << "</font></pre></b>";
+}
+
+template <typename Output>
+void printSingle(Output& output, const string &str, const string &color)
+{
+  output << "<font color=\"" << color << "\">" << str << "</font>";
 }
 
 template <typename Output>
 void printColorfulTokens(const string& text, const vector<Token>& tokens, Output& output)
 {
-    using namespace CharacterType;
-    output << "<b><pre><font size=\"6\">\n";
-    static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "brown"};
-    for (int i=0, cind=0; i<tokens.size(); i++)
-    {
-        output << "<font color=\"" << colors[cind] << "\">";
-        output << text.substr(tokens[i].start, tokens[i].length);
-        if (tokens[i].type == INDENT) {
-          output << "<font color=\"black\">`</font>";
-        }
-        output << "</font>";
-        if (tokens[i].type != WHITESPACE && tokens[i].type != INDENT)
-        {
-            cind=(cind+1)%colors.size();
-        }
+  using namespace CharacterType;
+  output << "<b><pre><font size=\"6\">\n";
+  static vector<std::string> colors = {"black", "blue", "lime", "red", "orange", "brown"};
+  for (int i=0, cind=0; i<tokens.size(); i++)
+  {
+    printSingle(output, text.substr(tokens[i].start, tokens[i].length), colors[cind]);
+    if (tokens[i].type == INDENT) {
+      printSingle(output, "`", "black");
     }
-    output << "</font></pre></b>";
+    if (tokens[i].type != WHITESPACE && tokens[i].type != INDENT) {
+      cind=(cind+1)%colors.size();
+    }
+  }
+  output << "</font></pre></b>";
 }
 
 
 void debugDumpAsText(const Graph &graph, string name)
 {
-    cerr << "Presenting graph " << name << endl;
-    for (unsigned int left=0; left<graph.getLeftSize(); left++)
+  cerr << "Presenting graph " << name << endl;
+  for (unsigned int left=0; left<graph.getLeftSize(); left++)
+  {
+    int leftNode = graph.left(left);
+    cerr << left << " -> ";
+    for (unsigned int j=0; j<graph.getOutDegree(leftNode); j ++)
     {
-        int leftNode = graph.left(left);
-        cerr << left << " -> ";
-        for (unsigned int j=0; j<graph.getOutDegree(leftNode); j ++)
-        {
-            int right = graph.whichRight(graph.getOutEdgeEnd(leftNode,j));
-            cerr << (j==0?"":", ") << right;
-        }
-        cerr << endl;
+      int right = graph.whichRight(graph.getOutEdgeEnd(leftNode,j));
+      cerr << (j==0?"":", ") << right;
     }
+    cerr << endl;
+  }
 }
 
-#endif // OUTPUT
+template <typename Output, typename Which, class Atom>
+void printOneSideLCS(Output& output, const TextInfoBeta<Atom>& info, const vector< pair<int,int> >& lcs, Which which)
+{
+  output << "<b><pre><font size=\"6\">\n";
+  for (int i=0, ind=0, j=0; i<info.size(); i++) {
+    int newj = info.positions[i];
+    while (j<newj) {
+      printSingle(output, info.atomOrigValue(j), "black");
+      j ++;
+    }
+    
+    if (which(lcs[ind]) == i) {
+      printSingle(output, info.atomOrigValue(j), "blue");
+      ind ++;
+    }
+    else {
+      printSingle(output, info.atomOrigValue(j), "black");
+    }
+    j ++;
+  }
+  output << "</font></pre></b>";
+}
+  
+
+template <typename Output, class Atom>
+void printLCS(Output& output, const TextInfoBeta<Atom>& infoA, const TextInfoBeta<Atom>& infoB, const vector< pair<int,int> >& lcs)
+{
+  for (int i=0; i<lcs.size(); i ++) {
+    cerr << infoA.atomValue(lcs[i].first) << " -- " << infoB.atomValue(lcs[i].second) << "\n";
+  }
+  
+  output << "<table><tr><td align=\"left\" style=\"padding-right: 100px;\">";
+  printOneSideLCS(output, infoA, lcs, [](pair<int,int> p){return p.first;});
+  output << "</td><td>";
+  printOneSideLCS(output, infoB, lcs, [](pair<int,int> p){return p.second;});
+  output << "</td></tr></table>";
+}
+    
+    
+    
+    #endif // OUTPUT
+    
