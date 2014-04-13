@@ -799,7 +799,6 @@ struct Logic2 {
 
   void foreachDAG(const vector<vector<pair<int,int> > > & dominantBlocks,const vector<pair<int,int> > & conflictingBlocks,OnEachBlocksSequence & visitor){
     // REMARK: why conflictingBlocks?
-    (void)conflictingBlocks;
     //1. zrób z dominantBlocks zwykły graf
     int maxLeft = -1;
     int maxRight = -1;
