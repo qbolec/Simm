@@ -210,7 +210,7 @@ void printColorfulTokens(const string& text, const vector<Token>& tokens, Output
       cind=(cind+1)%colors.size();
     }
   }
-  output << "</font></pre></b>";
+  output << "</font></pre></b>\n";
 }
 
 
@@ -233,7 +233,7 @@ void debugDumpAsText(const Graph &graph, string name)
 template <typename Output, typename Which, class Atom>
 void printOneSideLCS(Output& output, const TextInfoBeta<Atom>& info, const vector< pair<int,int> >& lcs, Which which)
 {
-  output << "<b><pre><font size=\"6\">\n";
+  output << "<b><pre><font size=\"3\">\n";
   for (int i=0, ind=0, j=0; i<info.size(); i++) {
     int newj = info.positions[i];
     while (j<newj) {
@@ -250,7 +250,7 @@ void printOneSideLCS(Output& output, const TextInfoBeta<Atom>& info, const vecto
     }
     j ++;
   }
-  output << "</font></pre></b>";
+  output << "</font></pre></b>\n";
 }
   
 
@@ -261,11 +261,11 @@ void printLCS(Output& output, const TextInfoBeta<Atom>& infoA, const TextInfoBet
     cerr << infoA.atomValue(lcs[i].first) << " -- " << infoB.atomValue(lcs[i].second) << "\n";
   }
   
-  output << "<table><tr><td align=\"left\" style=\"padding-right: 100px;\">";
+  output << "<table><tr><td align=\"left\" style=\"padding-right: 100px;\" valign=\"top\">";
   printOneSideLCS(output, infoA, lcs, [](pair<int,int> p){return p.first;});
   output << "</td><td>";
   printOneSideLCS(output, infoB, lcs, [](pair<int,int> p){return p.second;});
-  output << "</td></tr></table>";
+  output << "</td></tr></table>\n";
 }
     
     

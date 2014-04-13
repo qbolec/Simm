@@ -20,7 +20,7 @@ int main(int argc,char * args[]){
       << args[0] << " fileA fileB" << endl;
     return 1;
   }
-  getCheapest<Token>(readfile(args[1]),readfile(args[2]));
+  getCheapest<Char>(readfile(args[1]),readfile(args[2]));
   cout << "\n";
   return 0;
 }
