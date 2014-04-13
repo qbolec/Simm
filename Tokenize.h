@@ -38,6 +38,7 @@ inline int isPrefix(const string &sshort, const string &slong) {
     if (nonproperPrefix && sshort.size() == slong.size()) return 2;
     return (int)nonproperPrefix;
 }
+
 static const int INDENT_SPACES = 2;
 vector<Token> tokenize(const string &raw_text)
 {
@@ -221,12 +222,37 @@ vector<Token> tokenize(const string &raw_text)
     } 
     
     return withIndent;
-
 }
 
-
-
-
+vector<Line> linearize(string text)
+{
+  // discard spaces at end
+  // discard empty lines
+  text += '\n'; // ensure it ends with a newline
+  vector<Line> lines;
+  int startpos = 0;
+  for (int ind=0; ind<text.size(); ind++) {
+    if (text[ind] == '\n') {
+      int endpos = ind;
+      while (isspace(text[endpos-1]) && endpos > startpos) 
+        endpos --;
+      if (endpos > startpos) { // non-empty line
+        int startNonspace;
+        for (startNonspace = startpos; isspace(text[startNonspace]); startNonspace ++) ;
+        lines.push_back(Line(startpos, startNonspace-startpos));
+        lines.push_back(Line(startNonspace, endpos-startNonspace));
+        lines.push_back(Line(ind,1)); // add newline, it will be ignored anyway
+        
+        for (int j=3; j>=1; j--) {
+          const Line &line = lines[lines.size()-j];
+          cerr << "Token (" << line.length << "): " << text.substr(line.start, line.length) << "\n";
+        }
+      }
+      startpos = ind+1;
+    }
+  }
+  return lines;
+}
 
 
 

@@ -100,13 +100,32 @@ TextInfoBeta<Token> analyzeTextBeta(string text, DFA&)
     textInfo.original_atoms = tokenized;
 
     for (Token token: tokenized)
-    {
         textInfo.states.push_back(CharTypeToCharClass(token.type));
-    }
 
     matchBrackets(textInfo);
 
     return textInfo;
+}
+
+template <>
+TextInfoBeta<Line> analyzeTextBeta(string text, DFA&)
+{
+  TextInfoBeta<Line> textInfo;
+  textInfo.setText(text);
+  
+  vector<Line> lined = linearize(text);
+  textInfo.original_atoms = lined;
+  
+  for (Line line: lined) {
+    if (isspace(text[line.start+line.length-1]))
+      textInfo.states.push_back(DFA::IGNORABLE);
+    else
+      textInfo.states.push_back(DFA::IMPORTANT);
+  }
+  
+  matchBrackets(textInfo);
+  
+  return textInfo;
 }
 
 #endif

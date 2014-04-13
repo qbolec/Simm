@@ -49,6 +49,13 @@ struct Char
     char value;
     int position;
 };
+struct Line
+{
+  int start;
+  int length;
+  Line() {}
+  Line(int s, int l) : start(s), length(l) {}
+};
 
 template <typename Atom>
 struct TextInfoBeta
@@ -100,16 +107,26 @@ template <>
 string TextInfoBeta<Char>::atomValue(int i) const {
     return string(1,important_atoms[i].value);
 };
+
+template <>
+string TextInfoBeta<Line>::atomValue(int i) const {
+  const Line& atom = important_atoms[i];
+  return original_text.substr(atom.start, atom.length);
+};
 // original:
 template <>
 string TextInfoBeta<Token>::atomOrigValue(int i) const {
     const Token& atom = original_atoms[i];
     return original_text.substr(atom.start, atom.length); // I hope so
 };
-
 template <>
 string TextInfoBeta<Char>::atomOrigValue(int i) const {
     return string(1,original_atoms[i].value);
+};
+template <>
+string TextInfoBeta<Line>::atomOrigValue(int i) const {
+  const Line& atom = original_atoms[i];
+  return original_text.substr(atom.start, atom.length); // I hope so
 };
 
 DFA::CHARACTER_CLASS CharTypeToCharClass(CharacterType::Type type)
@@ -120,6 +137,7 @@ DFA::CHARACTER_CLASS CharTypeToCharClass(CharacterType::Type type)
     case CharacterType::CLOSE_BRACKET:
         return DFA::END_BRACKET;
     case CharacterType::WHITESPACE:
+    case CharacterType::INDENT:
         return DFA::IGNORABLE;
     default:
         return DFA::IMPORTANT;
